@@ -119,11 +119,15 @@
 
       measurement.remove();
 
-      if (maxWidth > 0) {
-        rotator.style.setProperty("--rotator-width", `${Math.ceil(maxWidth)}px`);
+      const width = Math.ceil(maxWidth);
+      const height = Math.ceil(maxHeight);
+
+      if (width > 0) {
+        rotator.style.setProperty("--rotator-width", `${width}px`);
+        rotator.style.setProperty("--rotator-depth", `${width}px`);
       }
-      if (maxHeight > 0) {
-        rotator.style.setProperty("--rotator-height", `${Math.ceil(maxHeight)}px`);
+      if (height > 0) {
+        rotator.style.setProperty("--rotator-height", `${height}px`);
       }
     };
 
@@ -193,7 +197,7 @@
       stage.addEventListener("transitionend", handleTransitionEnd);
 
       requestAnimationFrame(() => {
-        stage.style.transform = "rotateY(180deg)";
+        stage.style.transform = "rotateY(-90deg)";
       });
     };
 

@@ -149,50 +149,48 @@ nav.primary-nav a.active::after {
 .hero-rotator {
   --rotator-duration: 0.72s;
   --rotator-ease: cubic-bezier(0.65, 0, 0.35, 1);
+  --rotator-width: auto;
+  --rotator-height: auto;
+  --rotator-depth: 0px;
   display: inline-block;
   position: relative;
   perspective: 1100px;
+  vertical-align: baseline;
 }
 
 .hero-rotator__stage {
   position: relative;
   display: inline-grid;
+  grid-template-areas: "face";
   align-items: baseline;
   justify-items: start;
-  min-width: var(--rotator-width, auto);
-  min-height: var(--rotator-height, auto);
+  width: var(--rotator-width, auto);
+  height: var(--rotator-height, auto);
   transform-style: preserve-3d;
+  transform-origin: center;
   transform: rotateY(0deg);
   transition: transform var(--rotator-duration) var(--rotator-ease);
+  will-change: transform;
 }
 
 .hero-rotator__face {
-  grid-area: 1 / 1;
+  grid-area: face;
   display: inline-flex;
   align-items: baseline;
   justify-content: flex-start;
   line-height: inherit;
   backface-visibility: hidden;
-  transition: opacity var(--rotator-duration) var(--rotator-ease);
-  opacity: 1;
-  will-change: transform, opacity;
+  transform-origin: center;
+  will-change: transform;
+  transform: rotateY(var(--face-angle, 0deg)) translateZ(calc(var(--rotator-depth, 0px) / 2));
 }
 
 .hero-rotator__face--front {
-  transform: rotateY(0deg);
+  --face-angle: 0deg;
 }
 
 .hero-rotator__face--back {
-  transform: rotateY(180deg);
-  opacity: 0;
-}
-
-.hero-rotator.is-animating .hero-rotator__face--front {
-  opacity: 0;
-}
-
-.hero-rotator.is-animating .hero-rotator__face--back {
-  opacity: 1;
+  --face-angle: 90deg;
 }
 
 @media (prefers-reduced-motion: reduce) {
