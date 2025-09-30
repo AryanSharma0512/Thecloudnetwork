@@ -768,6 +768,13 @@ textarea {
   touch-action: pan-y;
 }
 
+/* Make iframe transformable for our pinch-zoom shim on mobile */
+.pdf-poster iframe {
+  transform-origin: center center;
+  will-change: transform;
+  transition: transform 0.06s linear;
+}
+
 .pdf-overlay[hidden] {
   display: none;
 }

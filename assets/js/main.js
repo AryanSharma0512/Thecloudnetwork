@@ -484,6 +484,68 @@
       // store so we can remove later
       overlay.__pdfTouchGuard = touchGuard;
       overlay.addEventListener("touchstart", touchGuard, { passive: false });
+
+      // Pinch-to-zoom shim: intercept two-finger gestures and scale the iframe content
+      const pdfFrame = overlay.querySelector("[data-pdf-frame]");
+      let pinch = {
+        active: false,
+        startDist: 0,
+        startScale: 1,
+        maxScale: 3,
+        minScale: 1,
+      };
+
+      const getDistance = (t1, t2) => {
+        const dx = t2.clientX - t1.clientX;
+        const dy = t2.clientY - t1.clientY;
+        return Math.hypot(dx, dy);
+      };
+
+      const onTouchStartPinch = (e) => {
+        if (!e.touches || e.touches.length !== 2) return;
+        pinch.active = true;
+        pinch.startDist = getDistance(e.touches[0], e.touches[1]);
+        // read current applied scale from transform
+        const style = pdfFrame.style.transform || "";
+        const m = style.match(/scale\(([^)]+)\)/);
+        pinch.startScale = m ? parseFloat(m[1]) : 1;
+        // prevent default browser handling
+        e.preventDefault();
+      };
+
+      const onTouchMovePinch = (e) => {
+        if (!pinch.active || !e.touches || e.touches.length !== 2) return;
+        const curDist = getDistance(e.touches[0], e.touches[1]);
+        const ratio = curDist / (pinch.startDist || curDist || 1);
+        let newScale = pinch.startScale * ratio;
+        newScale = Math.max(pinch.minScale, Math.min(pinch.maxScale, newScale));
+        pdfFrame.style.transform = `scale(${newScale})`;
+        // while pinching, prevent page-level pinch/scroll
+        e.preventDefault();
+      };
+
+      const onTouchEndPinch = (e) => {
+        if (!pinch.active) return;
+        if (!e.touches || e.touches.length < 2) {
+          // if scale fell below 1, reset to 1
+          const s = parseFloat((pdfFrame.style.transform.match(/scale\(([^)]+)\)/) || [0, 1])[1]);
+          if (s < 1.02) {
+            pdfFrame.style.transform = "scale(1)";
+          }
+          pinch.active = false;
+        }
+      };
+
+      // store handlers so we can remove them on close
+      overlay.__pdfPinchHandlers = {
+        start: onTouchStartPinch,
+        move: onTouchMovePinch,
+        end: onTouchEndPinch,
+      };
+
+      overlay.addEventListener("touchstart", onTouchStartPinch, { passive: false });
+      overlay.addEventListener("touchmove", onTouchMovePinch, { passive: false });
+      overlay.addEventListener("touchend", onTouchEndPinch, { passive: false });
     };
 
     const closeOverlay = () => {
@@ -495,6 +557,13 @@
       if (overlay.__pdfTouchGuard) {
         overlay.removeEventListener("touchstart", overlay.__pdfTouchGuard);
         delete overlay.__pdfTouchGuard;
+      }
+      // remove pinch handlers
+      if (overlay.__pdfPinchHandlers) {
+        overlay.removeEventListener("touchstart", overlay.__pdfPinchHandlers.start);
+        overlay.removeEventListener("touchmove", overlay.__pdfPinchHandlers.move);
+        overlay.removeEventListener("touchend", overlay.__pdfPinchHandlers.end);
+        delete overlay.__pdfPinchHandlers;
       }
 
       const handleTransitionEnd = (event) => {
