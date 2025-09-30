@@ -590,7 +590,12 @@ nav.primary-nav a.active::after {
 }
 
 .form-grid {
-  display: grid;
+  transition: var(--transition-base);
+  /* Promote to its own layer to avoid subpixel seams when transformed */
+  will-change: transform;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  transform-style: preserve-3d;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 1.5rem;
 }
@@ -1692,13 +1697,38 @@ footer.site-footer {
 /* Ensure the actual <img> is visible again and used as the visual source */
 .team-card-leader .team-image img {
   opacity: 1;
+  /* Anchor and size the image so it always covers the container. Making the
+     img absolutely positioned ensures scaling never exposes an empty gap at
+     the bottom when we transform the image for the pop effect. */
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
   transition: transform 0.42s cubic-bezier(0.25, 0.8, 0.25, 1);
   display: block;
+  z-index: 0; /* keep the image under the overlays */
+  /* Small oversize to prevent a 1px seam from appearing due to subpixel
+     rounding during transforms on some browsers. This keeps the visual
+     fully covering the container even when scaled or when the parent is
+     translated on hover. */
+  min-height: 104%;
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
 
 /* Hover / focus interactions use the real image and the existing ::after overlay for sheen */
+.team-card-leader .team-image img {
+  /* Ensure scaling anchors at the bottom so growth doesn't reveal a gap */
+  transform-origin: center bottom;
+}
+
 .team-card-leader:is(:hover, :focus-visible) .team-image img {
-  transform: translateY(-6px) scale(1.05);
+  /* Scale the portrait up from the bottom without translating it vertically.
+     The overall card lift is handled by the parent so the image appears to
+     pop forward while the background remains visually anchored. */
+  transform: scale(1.05);
 }
 
 .team-card-leader .team-role,
@@ -1724,7 +1754,10 @@ footer.site-footer {
 }
 
 .team-card-leader:is(:hover, :focus-visible) .team-image img {
-  transform: translateY(-6px) scale(1.05);
+  /* Remove vertical translation here to avoid exposing a gap at the bottom
+     of the card when the portrait grows. Scaling from the bottom is enough
+     to achieve the pop effect while the parent card handles the lift. */
+  transform: scale(1.05);
 }
 
 .team-card-leader:is(:hover, :focus-visible) .team-role,
@@ -1742,6 +1775,9 @@ footer.site-footer {
   position: relative;
   aspect-ratio: 4 / 5;
   overflow: hidden;
+  /* Base dark fill so tiny gaps during transforms show the intended background
+     instead of a light seam. The radial gradient remains for the highlight. */
+  background-color: rgba(2, 6, 23, 1);
   background: radial-gradient(circle at top, rgba(56, 189, 248, 0.25), transparent 65%);
 }
 
@@ -1782,6 +1818,20 @@ footer.site-footer {
   );
   mask-repeat: no-repeat;
   -webkit-mask-repeat: no-repeat;
+}
+
+/* Small bottom mask to hide any subpixel seam that may appear when the
+   portrait scales. Layered above the image but below the info overlay. */
+.team-image::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 10px;
+  pointer-events: none;
+  z-index: 2;
+  background: linear-gradient(to top, rgba(2,6,23,1), rgba(2,6,23,0));
 }
 
 @media (max-width: 720px) {
