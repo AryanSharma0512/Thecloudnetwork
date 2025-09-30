@@ -22,7 +22,23 @@
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
+            // Add visible to the target
             entry.target.classList.add("visible");
+
+            // If the hero title becomes visible, immediately mark the full stop
+            // visible as well so the punctuation animates in perfect sync.
+            try {
+              if (entry.target.id === "hero-title") {
+                const fullstop = document.querySelector(".hero-fullstop[data-animate]");
+                if (fullstop) {
+                  fullstop.classList.add("visible");
+                  observer.unobserve(fullstop);
+                }
+              }
+            } catch (e) {
+              // swallow any unexpected errors to avoid breaking other observers
+            }
+
             observer.unobserve(entry.target);
           }
         });
