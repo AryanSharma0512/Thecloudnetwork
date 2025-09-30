@@ -601,9 +601,32 @@
       }
     };
 
+    // If on a small/mobile screen, open the PDF directly in a new tab instead
+    // of showing the in-page iframe overlay. On larger screens keep the
+    // existing overlay behavior so desktop users keep the same UX.
     triggers.forEach((trigger) => {
       trigger.addEventListener("click", (event) => {
         event.preventDefault();
+
+        // Define small screen breakpoint — matches common mobile widths.
+        const isSmallScreen = window.matchMedia && window.matchMedia("(max-width: 767px)").matches;
+
+        if (isSmallScreen) {
+          // If we have a PDF URL, open it in a new tab/window. Use a user-initiated
+          // click to avoid popup blockers. Null out opener for security when possible.
+          if (pdfSrc) {
+            const win = window.open(pdfSrc, "_blank");
+            try {
+              if (win) win.opener = null;
+            } catch (e) {
+              // ignore if setting opener is not allowed
+            }
+            return;
+          }
+          // If no pdfSrc is available, fall back to overlay as a graceful degrade.
+        }
+
+        // Default: open the in-page overlay (desktop/tablet behavior).
         openOverlay();
       });
     });
