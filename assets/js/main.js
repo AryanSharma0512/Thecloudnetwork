@@ -466,6 +466,24 @@
 
       overlay.addEventListener("keydown", trapFocus);
       document.addEventListener("keydown", handleEscape);
+      // Prevent edge-swipe back gestures from hijacking vertical scroll in the PDF on mobile
+      const touchGuard = (e) => {
+        try {
+          const touch = e.touches && e.touches[0];
+          if (!touch) return;
+          const edgeThreshold = 24; // px from left edge
+          if (touch.clientX <= edgeThreshold) {
+            // Prevent the browser back-swipe from initiating
+            e.stopPropagation();
+            e.preventDefault();
+          }
+        } catch (err) {
+          // silent
+        }
+      };
+      // store so we can remove later
+      overlay.__pdfTouchGuard = touchGuard;
+      overlay.addEventListener("touchstart", touchGuard, { passive: false });
     };
 
     const closeOverlay = () => {
@@ -473,6 +491,11 @@
       document.body.style.removeProperty("overflow");
       overlay.removeEventListener("keydown", trapFocus);
       document.removeEventListener("keydown", handleEscape);
+      // remove touch guard
+      if (overlay.__pdfTouchGuard) {
+        overlay.removeEventListener("touchstart", overlay.__pdfTouchGuard);
+        delete overlay.__pdfTouchGuard;
+      }
 
       const handleTransitionEnd = (event) => {
         if (event.target !== overlay) {
