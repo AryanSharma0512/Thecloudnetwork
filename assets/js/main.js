@@ -405,7 +405,11 @@
       return;
     }
 
-    const pdfSrc = overlay.getAttribute("data-pdf-src") || frame.getAttribute("src") || "";
+    const pdfPath = overlay.getAttribute("data-pdf-src") || "/assets/pdf/callout.pdf";
+    const pdfAbsoluteUrl = new URL(pdfPath, window.location.href).href;
+    const viewerBase = "pdfjs/web/viewer.html";           
+    const viewerUrl = `${viewerBase}?file=${encodeURIComponent(pdfAbsoluteUrl)}#zoom=page-width`;
+    //const pdfSrc = overlay.getAttribute("data-pdf-src") || frame.getAttribute("src") || "";
     let hasLoaded = Boolean(frame.getAttribute("src"));
     let lastActiveElement = null;
 
@@ -453,8 +457,8 @@
       }
       document.body.style.overflow = "hidden";
 
-      if (!hasLoaded && pdfSrc) {
-        frame.setAttribute("src", pdfSrc);
+      if (!hasLoaded && viewerUrl) {
+        frame.setAttribute("src", viewerUrl);
         hasLoaded = true;
       }
 
