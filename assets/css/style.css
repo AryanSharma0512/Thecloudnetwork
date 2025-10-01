@@ -2126,7 +2126,7 @@ footer.site-footer {
 }
 
 .team-card-leader:is(:hover, :focus-visible) .team-card-info {
-  transform: translateY(8px); /* lift text slightly on hover, positive val to cover bottom pic */
+  transform: translateY(20px); /* lift text slightly on hover, positive val to cover bottom pic */
 }
 
 .team-card-leader:is(:hover, :focus-visible) .team-card-info::before {
