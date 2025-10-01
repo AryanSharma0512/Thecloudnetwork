@@ -2197,7 +2197,7 @@ footer.site-footer {
 }
 
 .team-card-leader:is(:hover, :focus-visible) .team-card-info {
-  transform: translateY(-4px);
+  transform: translateY(8px); /* lift text slightly on hover, positive val to cover bottom pic */
 }
 
 .team-card-leader:is(:hover, :focus-visible) .team-card-info::before {
@@ -2213,7 +2213,7 @@ footer.site-footer {
 
 .team-card-leader:is(:hover, :focus-visible) .team-role,
 .team-card-leader:is(:hover, :focus-visible) .team-name {
-  transform: translateY(-2px);
+  transform: translateY(-20px); /* lift text slightly on hover. Negative raises higher */
 }
 
 .team-grid-leadership .team-card-leader:first-child {
