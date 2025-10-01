@@ -368,30 +368,149 @@
   };
 
   const initFormInteractions = () => {
-    const form = document.querySelector("form[data-mock-submit]");
+    const form = document.querySelector("[data-rsvp-form]");
     if (!form) return;
 
-    form.addEventListener("submit", (event) => {
-      event.preventDefault();
-      const button = form.querySelector("button[type='submit']");
-      const feedback = form.querySelector("[data-form-feedback]");
+    const submitButton = form.querySelector("[data-submit-button]");
+    const statusElement = form.querySelector("[data-form-feedback]");
+    const honeyField = form.querySelector("[data-honey]");
+    const gradYearField = form.querySelector('[name="grad_year"]');
+    const defaultButtonText = submitButton ? submitButton.textContent : "";
 
-      if (button) {
-        button.disabled = true;
-        button.textContent = "Submitting...";
+    if (typeof window.fetch !== "function" || typeof window.FormData !== "function") {
+      return;
+    }
+
+    const clearStatus = () => {
+      if (!statusElement) return;
+      statusElement.classList.remove("form-status--success", "form-status--error", "is-visible");
+      statusElement.textContent = "";
+    };
+
+    const renderStatus = (message, type) => {
+      if (!statusElement) return;
+      clearStatus();
+      if (!message) return;
+
+      const icon = document.createElement("span");
+      icon.className = "form-status__icon";
+      icon.setAttribute("aria-hidden", "true");
+
+      const text = document.createElement("span");
+      text.className = "form-status__text";
+      text.textContent = message;
+
+      statusElement.appendChild(icon);
+      statusElement.appendChild(text);
+
+      if (type) {
+        statusElement.classList.add(`form-status--${type}`);
       }
 
-      setTimeout(() => {
-        if (button) {
-          button.disabled = false;
-          button.textContent = "Submit Application";
+      if (typeof window.requestAnimationFrame === "function") {
+        window.requestAnimationFrame(() => statusElement.classList.add("is-visible"));
+      } else {
+        statusElement.classList.add("is-visible");
+      }
+    };
+
+    const setSubmittingState = (isSubmitting) => {
+      if (!submitButton) return;
+      if (isSubmitting) {
+        submitButton.disabled = true;
+        submitButton.dataset.state = "submitting";
+        submitButton.textContent = "Submitting...";
+      } else {
+        submitButton.disabled = false;
+        submitButton.textContent = defaultButtonText;
+        delete submitButton.dataset.state;
+      }
+    };
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      clearStatus();
+
+      if (typeof form.checkValidity === "function" && !form.checkValidity()) {
+        if (typeof form.reportValidity === "function") {
+          form.reportValidity();
         }
-        if (feedback) {
-          feedback.textContent = "Thanks! We’ll reach out soon with next steps.";
-          feedback.classList.add("visible");
+        return;
+      }
+
+      const honeyValue = honeyField && typeof honeyField.value === "string" ? honeyField.value.trim() : "";
+      if (honeyValue) {
+        renderStatus("We couldn’t process your submission. Please try again.", "error");
+        return;
+      }
+
+      const gradYearValue = gradYearField && typeof gradYearField.value === "string" ? gradYearField.value.trim() : "";
+      if (gradYearValue && !/^\d{4}$/.test(gradYearValue)) {
+        renderStatus("Enter a four-digit graduation year (e.g., 2026).", "error");
+        if (typeof gradYearField.focus === "function") {
+          gradYearField.focus({ preventScroll: true });
         }
+        return;
+      }
+
+      setSubmittingState(true);
+
+      const formData = new FormData(form);
+
+      try {
+        const response = await fetch(form.getAttribute("action") || "/api/rsvp.php", {
+          method: (form.getAttribute("method") || "POST").toUpperCase(),
+          body: formData,
+          headers: {
+            Accept: "application/json",
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error(`Request failed with status ${response.status}`);
+        }
+
+        let payload = null;
+        try {
+          payload = await response.json();
+        } catch (parseError) {
+          throw new Error("Unable to parse server response.");
+        }
+
+        if (!payload || payload.ok !== true) {
+          const message = (payload && (payload.error || payload.message)) ||
+            "We could not save your RSVP. Please try again.";
+          renderStatus(message, "error");
+          setSubmittingState(false);
+          return;
+        }
+
         form.reset();
-      }, 900);
+        renderStatus("You're all set! Check your email shortly.", "success");
+
+        if (submitButton) {
+          submitButton.disabled = true;
+          submitButton.dataset.state = "success";
+          submitButton.textContent = "Submitted!";
+          window.setTimeout(() => {
+            submitButton.disabled = false;
+            submitButton.textContent = defaultButtonText;
+            delete submitButton.dataset.state;
+          }, 1600);
+        }
+
+        if (statusElement) {
+          window.setTimeout(() => {
+            statusElement.classList.remove("is-visible");
+            window.setTimeout(() => {
+              clearStatus();
+            }, 350);
+          }, 6000);
+        }
+      } catch (error) {
+        renderStatus("We hit a network hiccup. Please try again in a moment.", "error");
+        setSubmittingState(false);
+      }
     });
   };
 
