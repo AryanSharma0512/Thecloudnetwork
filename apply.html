@@ -156,58 +156,95 @@
 
       <section class="section" aria-labelledby="application-form">
         <div class="wrapper split-layout">
-          <!--
           <article>
             <h2 id="application-form" class="section-title" data-animate>Application form</h2>
             <p class="text-muted" data-animate>
-              This is an interest form. We’ll follow up with next steps and a build challenge if it feels like a fit. All
-              fields are required so we can learn how you think and collaborate.
+              Share how we can reach you and what you’re studying. Required fields are marked and everything else is
+              optional context that helps us tailor the right Cloud Network experience.
             </p>
-            <form class="form-card" data-mock-submit data-animate>
+            <form class="form-card" action="/api/rsvp.php" method="POST" data-rsvp-form data-animate>
+              <div class="honeypot-field" aria-hidden="true">
+                <label for="apply-honey">Leave this field empty</label>
+                <input id="apply-honey" name="honey" type="text" tabindex="-1" autocomplete="off" data-honey />
+              </div>
               <div class="form-grid">
                 <div>
-                  <label for="name">Full name</label>
-                  <input id="name" name="name" type="text" placeholder="Jordan Rivera" required />
+                  <label for="full_name"
+                    >Full name<span aria-hidden="true" class="required-indicator">*</span
+                    ><span class="visually-hidden"> required</span></label
+                  >
+                  <input
+                    id="full_name"
+                    name="full_name"
+                    type="text"
+                    placeholder="Jordan Rivera"
+                    autocomplete="name"
+                    required
+                  />
                 </div>
                 <div>
-                  <label for="email">Email</label>
-                  <input id="email" name="email" type="email" placeholder="you@cloud.network" required />
+                  <label for="email"
+                    >Email<span aria-hidden="true" class="required-indicator">*</span
+                    ><span class="visually-hidden"> required</span></label
+                  >
+                  <input
+                    id="email"
+                    name="email"
+                    type="email"
+                    placeholder="you@cloud.network"
+                    autocomplete="email"
+                    required
+                  />
                 </div>
                 <div>
-                  <label for="portfolio">Portfolio or project link</label>
-                  <input id="portfolio" name="portfolio" type="url" placeholder="https://" required />
+                  <label for="phone">Phone</label>
+                  <input
+                    id="phone"
+                    name="phone"
+                    type="tel"
+                    placeholder="(765) 123-4567"
+                    autocomplete="tel"
+                    inputmode="tel"
+                  />
                 </div>
                 <div>
-                  <label for="focus">Focus area</label>
-                  <select id="focus" name="focus" required>
-                    <option value="" disabled selected>Select one</option>
-                    <option value="systems">Systems &amp; engineering</option>
-                    <option value="design">Design &amp; interaction</option>
-                    <option value="media">Media &amp; storytelling</option>
-                    <option value="ops">Operations &amp; partnerships</option>
-                  </select>
+                  <label for="major">Major</label>
+                  <input id="major" name="major" type="text" placeholder="Computer Engineering" autocomplete="organization" />
+                </div>
+                <div>
+                  <label for="grad_year">Graduation year</label>
+                  <input
+                    id="grad_year"
+                    name="grad_year"
+                    type="text"
+                    placeholder="2026"
+                    inputmode="numeric"
+                    pattern="[0-9]{4}"
+                    title="Enter a four-digit year, e.g., 2026."
+                  />
                 </div>
               </div>
               <div style="margin-top: 1.5rem">
-                <label for="why">What are you excited to build with us?</label>
-                <textarea id="why" name="why" placeholder="Sketch your narrative..." required></textarea>
-              </div>
-              <div style="margin-top: 1.5rem">
-                <label for="availability">Availability</label>
+                <label for="notes">Anything else we should know?</label>
                 <textarea
-                  id="availability"
-                  name="availability"
-                  placeholder="Let us know your semester schedule or constraints."
-                  required
+                  id="notes"
+                  name="notes"
+                  placeholder="Goals, clubs you’re part of, or projects you’d love to build."
+                  rows="5"
                 ></textarea>
               </div>
-              <div style="margin-top: 2rem; display: flex; align-items: center; gap: 1.5rem">
-                <button class="button" type="submit">Submit Application</button>
-                <span class="text-muted" data-form-feedback aria-live="polite"></span>
+              <div class="form-consent">
+                <input id="consent" name="consent" type="checkbox" value="yes" required />
+                <label for="consent">
+                  I agree to be contacted about Cloud Network Purdue events and opportunities.
+                </label>
+              </div>
+              <div class="form-actions">
+                <button class="button" type="submit" data-submit-button>Submit RSVP</button>
+                <div class="form-status" data-form-feedback aria-live="polite" role="status"></div>
               </div>
             </form>
           </article>
-          -->
           <!--
           <aside class="layer-card" data-animate>
             <h3 style="margin-top: 0">What happens next</h3>
