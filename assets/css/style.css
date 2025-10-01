@@ -674,17 +674,14 @@ textarea {
   align-items: center;
   gap: 0.75rem;
   padding: 0.4rem 0.75rem 0.4rem 0.5rem;
-  border-radius: 0.85rem;
-  border: 1px solid rgba(148, 163, 184, 0.28);
-  background:
-    radial-gradient(circle at top, rgba(56, 189, 248, 0.2), transparent 65%),
-    linear-gradient(160deg, rgba(15, 23, 42, 0.9), rgba(15, 118, 110, 0.25));
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.12), 0 18px 35px rgba(2, 6, 23, 0.55);
-  transition: border-color 0.35s ease, box-shadow 0.35s ease, transform 0.35s ease;
+  border-radius: 0.45rem;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(15, 23, 42, 0.7);
+  box-shadow: none;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .input-with-prefix:hover {
-  transform: translateY(-1px);
   border-color: rgba(56, 189, 248, 0.7);
 }
 
@@ -722,8 +719,8 @@ textarea {
 }
 
 .input-with-prefix:focus-within {
-  border-color: rgba(56, 189, 248, 0.85);
-  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.18), 0 0 0 5px rgba(56, 189, 248, 0.22), 0 20px 45px rgba(14, 165, 233, 0.3);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25);
 }
 
 .input-with-prefix:focus-within .input-prefix {
