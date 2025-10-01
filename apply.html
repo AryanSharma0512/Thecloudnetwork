@@ -179,6 +179,7 @@
                     type="text"
                     placeholder="Jordan Rivera"
                     autocomplete="name"
+                    maxlength="80"
                     required
                   />
                 </div>
@@ -191,36 +192,66 @@
                     id="email"
                     name="email"
                     type="email"
-                    placeholder="you@cloud.network"
+                    placeholder="you@purdue.edu"
                     autocomplete="email"
+                    data-purdue-email
                     required
                   />
                 </div>
                 <div>
                   <label for="phone">Phone</label>
-                  <input
-                    id="phone"
-                    name="phone"
-                    type="tel"
-                    placeholder="(765) 123-4567"
-                    autocomplete="tel"
-                    inputmode="tel"
-                  />
+                  <div class="input-with-prefix" data-phone-wrapper>
+                    <span aria-hidden="true" class="input-prefix">+1</span>
+                    <input
+                      id="phone"
+                      name="phone"
+                      type="tel"
+                      placeholder="7651234567"
+                      autocomplete="tel"
+                      inputmode="numeric"
+                      maxlength="10"
+                      data-phone-input
+                    />
+                  </div>
+                  <p class="input-hint" id="phone-hint">U.S. numbers only. Enter 10 digits.</p>
                 </div>
                 <div>
                   <label for="major">Major</label>
-                  <input id="major" name="major" type="text" placeholder="Computer Engineering" autocomplete="organization" />
+                  <select id="major" name="major" autocomplete="organization" data-major-select>
+                    <option value="">Select your major</option>
+                    <option value="Computer Science">Computer Science</option>
+                    <option value="Computer Engineering">Computer Engineering</option>
+                    <option value="Cybersecurity">Cybersecurity</option>
+                    <option value="Data Science">Data Science</option>
+                    <option value="Artificial Intelligence">Artificial Intelligence</option>
+                    <option value="Machine Learning">Machine Learning</option>
+                    <option value="Software Engineering">Software Engineering</option>
+                    <option value="CNIT">CNIT</option>
+                    <option value="other">Other</option>
+                  </select>
+                  <div class="major-other" data-major-other hidden>
+                    <label for="major_other">Tell us your major</label>
+                    <input
+                      id="major_other"
+                      name="major_other"
+                      type="text"
+                      placeholder="Your major"
+                      maxlength="60"
+                      data-major-other-input
+                    />
+                  </div>
                 </div>
                 <div>
                   <label for="grad_year">Graduation year</label>
                   <input
                     id="grad_year"
                     name="grad_year"
-                    type="text"
+                    type="number"
                     placeholder="2026"
                     inputmode="numeric"
                     pattern="[0-9]{4}"
                     title="Enter a four-digit year, e.g., 2026."
+                    data-grad-year
                   />
                 </div>
               </div>
@@ -233,11 +264,20 @@
                   rows="5"
                 ></textarea>
               </div>
-              <div class="form-consent">
-                <input id="consent" name="consent" type="checkbox" value="yes" required />
-                <label for="consent">
+              <div class="form-consent" data-consent-toggle>
+                <input type="hidden" name="consent" value="no" data-consent-input />
+                <button
+                  class="consent-toggle"
+                  type="button"
+                  data-consent-button
+                  aria-pressed="false"
+                  aria-describedby="consent-copy"
+                >
+                  <span class="consent-toggle__state" data-consent-label>No, I do not agree</span>
+                </button>
+                <p id="consent-copy">
                   I agree to be contacted about Cloud Network Purdue events and opportunities.
-                </label>
+                </p>
               </div>
               <div class="form-actions">
                 <button class="button" type="submit" data-submit-button>Submit RSVP</button>

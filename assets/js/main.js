@@ -374,12 +374,171 @@
     const submitButton = form.querySelector("[data-submit-button]");
     const statusElement = form.querySelector("[data-form-feedback]");
     const honeyField = form.querySelector("[data-honey]");
-    const gradYearField = form.querySelector('[name="grad_year"]');
+    const gradYearField = form.querySelector('[data-grad-year]') || form.querySelector('[name="grad_year"]');
+    const emailField = form.querySelector('[data-purdue-email]');
+    const phoneField = form.querySelector('[data-phone-input]');
+    const majorSelect = form.querySelector('[data-major-select]');
+    const majorOtherContainer = form.querySelector('[data-major-other]');
+    const majorOtherInput = form.querySelector('[data-major-other-input]');
+    const consentButton = form.querySelector('[data-consent-button]');
+    const consentInput = form.querySelector('[data-consent-input]');
     const defaultButtonText = submitButton ? submitButton.textContent : "";
+    const currentYear = new Date().getFullYear();
+    const maxGradYear = currentYear + 5;
 
     if (typeof window.fetch !== "function" || typeof window.FormData !== "function") {
       return;
     }
+
+    const enforcePurdueEmail = () => {
+      if (!emailField) return;
+      const value = emailField.value.trim();
+      if (!value) {
+        emailField.setCustomValidity("");
+        return;
+      }
+
+      if (!value.toLowerCase().endsWith("@purdue.edu")) {
+        emailField.setCustomValidity("Oops, this is only for Purdue students. Become a Boilermaker to join.");
+      } else {
+        emailField.setCustomValidity("");
+      }
+    };
+
+    const enforceGradYearValidity = () => {
+      if (!gradYearField) return;
+      const value = gradYearField.value.trim();
+
+      if (!value) {
+        gradYearField.setCustomValidity("");
+        return;
+      }
+
+      if (!/^\d{4}$/.test(value)) {
+        gradYearField.setCustomValidity("Enter a four-digit graduation year (e.g., 2026).");
+        return;
+      }
+
+      const numeric = Number(value);
+      if (Number.isFinite(numeric) && numeric > maxGradYear) {
+        gradYearField.setCustomValidity(`Please choose a year no later than ${maxGradYear}.`);
+        return;
+      }
+
+      gradYearField.setCustomValidity("");
+    };
+
+    const enforcePhoneValidity = () => {
+      if (!phoneField) return;
+      const digitsOnly = (phoneField.value || "").replace(/\D/g, "").slice(0, 10);
+      if (phoneField.value !== digitsOnly) {
+        phoneField.value = digitsOnly;
+      }
+
+      if (!digitsOnly) {
+        phoneField.setCustomValidity("");
+        return;
+      }
+
+      if (digitsOnly.length !== 10) {
+        phoneField.setCustomValidity("Enter a 10-digit U.S. phone number.");
+      } else {
+        phoneField.setCustomValidity("");
+      }
+    };
+
+    const enforceMajorOtherValidity = () => {
+      if (!majorOtherInput) return;
+      if (!majorOtherInput.required) {
+        majorOtherInput.setCustomValidity("");
+        return;
+      }
+
+      const value = majorOtherInput.value.trim();
+      if (!value) {
+        majorOtherInput.setCustomValidity("Please tell us your major.");
+      } else {
+        majorOtherInput.setCustomValidity("");
+      }
+    };
+
+    const toggleMajorOther = () => {
+      if (!majorSelect) return;
+      const isOther = majorSelect.value === "other";
+
+      if (majorOtherContainer) {
+        majorOtherContainer.hidden = !isOther;
+      }
+
+      if (majorOtherInput) {
+        majorOtherInput.required = isOther;
+        if (!isOther) {
+          majorOtherInput.value = "";
+          majorOtherInput.setCustomValidity("");
+        }
+      }
+    };
+
+    const updateConsentToggle = () => {
+      if (!consentButton || !consentInput) return;
+      const agreed = consentInput.value === "yes";
+      consentButton.setAttribute("aria-pressed", agreed ? "true" : "false");
+      const label = consentButton.querySelector("[data-consent-label]");
+      if (label) {
+        label.textContent = agreed ? "Yes, I agree" : "No, I do not agree";
+      }
+    };
+
+    if (gradYearField) {
+      gradYearField.setAttribute("max", String(maxGradYear));
+      gradYearField.addEventListener("input", enforceGradYearValidity);
+      gradYearField.addEventListener("blur", enforceGradYearValidity);
+    }
+
+    if (emailField) {
+      emailField.addEventListener("input", enforcePurdueEmail);
+      emailField.addEventListener("blur", enforcePurdueEmail);
+    }
+
+    if (phoneField) {
+      phoneField.setAttribute("aria-describedby", phoneField.getAttribute("aria-describedby") || "phone-hint");
+      phoneField.addEventListener("input", enforcePhoneValidity);
+      phoneField.addEventListener("blur", enforcePhoneValidity);
+    }
+
+    if (majorSelect) {
+      majorSelect.addEventListener("change", () => {
+        toggleMajorOther();
+        enforceMajorOtherValidity();
+      });
+    }
+
+    if (majorOtherInput) {
+      majorOtherInput.addEventListener("input", enforceMajorOtherValidity);
+      majorOtherInput.addEventListener("blur", enforceMajorOtherValidity);
+    }
+
+    if (consentButton && consentInput) {
+      const toggleConsent = () => {
+        consentInput.value = consentInput.value === "yes" ? "no" : "yes";
+        updateConsentToggle();
+      };
+
+      consentButton.addEventListener("click", toggleConsent);
+      consentButton.addEventListener("keydown", (event) => {
+        if (event.key === " " || event.key === "Enter") {
+          event.preventDefault();
+          toggleConsent();
+        }
+      });
+      updateConsentToggle();
+    }
+
+    toggleMajorOther();
+    enforcePurdueEmail();
+    enforceGradYearValidity();
+    enforcePhoneValidity();
+    enforceMajorOtherValidity();
 
     const clearStatus = () => {
       if (!statusElement) return;
@@ -431,6 +590,11 @@
       event.preventDefault();
       clearStatus();
 
+      enforcePurdueEmail();
+      enforceGradYearValidity();
+      enforcePhoneValidity();
+      enforceMajorOtherValidity();
+
       if (typeof form.checkValidity === "function" && !form.checkValidity()) {
         if (typeof form.reportValidity === "function") {
           form.reportValidity();
@@ -456,6 +620,16 @@
       setSubmittingState(true);
 
       const formData = new FormData(form);
+
+      if (phoneField) {
+        const sanitizedPhone = (phoneField.value || "").replace(/\D/g, "").slice(0, 10);
+        formData.set("phone", sanitizedPhone);
+      }
+
+      if (majorOtherInput) {
+        const trimmedOther = majorOtherInput.value ? majorOtherInput.value.trim() : "";
+        formData.set("major_other", trimmedOther);
+      }
 
       try {
         const endpoint = form.getAttribute("action") || "/api/rsvp.php";
@@ -489,6 +663,13 @@
 
         form.reset();
         renderStatus("You're all set! Check your email shortly.", "success");
+
+        toggleMajorOther();
+        enforcePurdueEmail();
+        enforceGradYearValidity();
+        enforcePhoneValidity();
+        enforceMajorOtherValidity();
+        updateConsentToggle();
 
         if (submitButton) {
           submitButton.disabled = true;
