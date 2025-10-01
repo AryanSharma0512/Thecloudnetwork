@@ -1,4 +1,6 @@
 (function () {
+  const RSVP_PROMPT_COOKIE = "tcn_rsvp_prompt";
+
   const setActiveNav = () => {
     const navLinks = document.querySelectorAll("nav.primary-nav a");
     const currentPath = window.location.pathname.split("/").pop();
@@ -9,6 +11,44 @@
       const isActive = linkPath === currentPath || (!currentPath && linkPath === "index.html");
       link.classList.toggle("active", isActive);
     });
+  };
+
+  const getCookie = (name) => {
+    if (!name || typeof document === "undefined") {
+      return null;
+    }
+
+    const cookies = document.cookie ? document.cookie.split("; ") : [];
+    for (const cookie of cookies) {
+      const separatorIndex = cookie.indexOf("=");
+      const rawName = separatorIndex > -1 ? cookie.slice(0, separatorIndex) : cookie;
+      if (decodeURIComponent(rawName) === name) {
+        const rawValue = separatorIndex > -1 ? cookie.slice(separatorIndex + 1) : "";
+        try {
+          return decodeURIComponent(rawValue);
+        } catch (error) {
+          return rawValue;
+        }
+      }
+    }
+
+    return null;
+  };
+
+  const setCookie = (name, value, days) => {
+    if (!name || typeof document === "undefined") {
+      return;
+    }
+
+    let expires = "";
+    if (Number.isFinite(days)) {
+      const date = new Date();
+      date.setTime(date.getTime() + days * 24 * 60 * 60 * 1000);
+      expires = `; expires=${date.toUTCString()}`;
+    }
+
+    const cookieValue = encodeURIComponent(String(value ?? ""));
+    document.cookie = `${encodeURIComponent(name)}=${cookieValue}${expires}; path=/; SameSite=Lax`;
   };
 
   const initScrollAnimations = () => {
@@ -380,8 +420,8 @@
     const majorSelect = form.querySelector('[data-major-select]');
     const majorOtherContainer = form.querySelector('[data-major-other]');
     const majorOtherInput = form.querySelector('[data-major-other-input]');
-    const consentButton = form.querySelector('[data-consent-button]');
-    const consentInput = form.querySelector('[data-consent-input]');
+    const consentCheckbox = form.querySelector('[data-consent-checkbox]');
+    const consentFallback = form.querySelector('[data-consent-fallback]');
     const defaultButtonText = submitButton ? submitButton.textContent : "";
     const currentYear = new Date().getFullYear();
     const maxGradYear = currentYear + 5;
@@ -479,20 +519,6 @@
       }
     };
 
-    const updateConsentToggle = () => {
-      if (!consentButton || !consentInput) return;
-      const agreed = consentInput.value === "yes";
-      const labelText = agreed
-        ? "Yes, I agree to be contacted about Cloud Network Purdue events and opportunities"
-        : "No, I do not agree to be contacted";
-      consentButton.setAttribute("aria-pressed", agreed ? "true" : "false");
-      consentButton.setAttribute("aria-label", labelText);
-      const srLabel = consentButton.querySelector("[data-consent-label]");
-      if (srLabel) {
-        srLabel.textContent = labelText;
-      }
-    };
-
     if (gradYearField) {
       gradYearField.setAttribute("max", String(maxGradYear));
       gradYearField.addEventListener("input", enforceGradYearValidity);
@@ -527,119 +553,17 @@
       majorOtherInput.addEventListener("blur", enforceMajorOtherValidity);
     }
 
-    if (consentButton && consentInput) {
-      const setConsent = (value) => {
-        if (consentInput.value === value) return;
-        consentInput.value = value;
-        updateConsentToggle();
-      };
+    let syncConsentValue;
 
-      const toggleConsent = () => {
-        setConsent(consentInput.value === "yes" ? "no" : "yes");
-      };
-
-      let pointerStartY = null;
-      let pointerId = null;
-      let dragged = false;
-      let skipNextClick = false;
-
-      const clearPointerState = ({ preserveSkip } = {}) => {
-        pointerStartY = null;
-        pointerId = null;
-        dragged = false;
-        if (!preserveSkip) {
-          skipNextClick = false;
-        }
-        consentButton.classList.remove("is-dragging");
-      };
-
-      const handlePointerDown = (event) => {
-        pointerStartY = event.clientY;
-        pointerId = event.pointerId;
-        dragged = false;
-        skipNextClick = false;
-        consentButton.classList.add("is-dragging");
-        if (typeof consentButton.setPointerCapture === "function") {
-          try {
-            consentButton.setPointerCapture(event.pointerId);
-          } catch (error) {
-            /* noop */
-          }
+    if (consentCheckbox) {
+      syncConsentValue = () => {
+        if (consentFallback) {
+          consentFallback.disabled = consentCheckbox.checked;
         }
       };
 
-      const handlePointerMove = (event) => {
-        if (pointerStartY === null) return;
-        const delta = pointerStartY - event.clientY;
-        if (Math.abs(delta) < 28) return;
-        dragged = true;
-        pointerStartY = event.clientY;
-        const target = delta > 0 ? "no" : "yes";
-        setConsent(target);
-      };
-
-      const handlePointerEnd = (event) => {
-        if (!dragged) {
-          toggleConsent();
-          skipNextClick = true;
-        }
-
-        if (pointerId !== null && typeof consentButton.hasPointerCapture === "function") {
-          try {
-            if (consentButton.hasPointerCapture(pointerId)) {
-              consentButton.releasePointerCapture(pointerId);
-            }
-          } catch (error) {
-            /* noop */
-          }
-        }
-
-        clearPointerState({ preserveSkip: true });
-      };
-
-      const handlePointerCancel = () => {
-        if (pointerId !== null && typeof consentButton.hasPointerCapture === "function") {
-          try {
-            if (consentButton.hasPointerCapture(pointerId)) {
-              consentButton.releasePointerCapture(pointerId);
-            }
-          } catch (error) {
-            /* noop */
-          }
-        }
-        clearPointerState();
-      };
-
-      consentButton.addEventListener("pointerdown", handlePointerDown);
-      consentButton.addEventListener("pointermove", handlePointerMove);
-      consentButton.addEventListener("pointerup", handlePointerEnd);
-      consentButton.addEventListener("pointercancel", handlePointerCancel);
-      consentButton.addEventListener("lostpointercapture", () =>
-        clearPointerState({ preserveSkip: skipNextClick })
-      );
-
-      consentButton.addEventListener("click", (event) => {
-        if (skipNextClick) {
-          skipNextClick = false;
-          return;
-        }
-        toggleConsent();
-      });
-
-      consentButton.addEventListener("keydown", (event) => {
-        if (event.key === " " || event.key === "Enter") {
-          event.preventDefault();
-          toggleConsent();
-        } else if (event.key === "ArrowUp") {
-          event.preventDefault();
-          setConsent("no");
-        } else if (event.key === "ArrowDown") {
-          event.preventDefault();
-          setConsent("yes");
-        }
-      });
-
-      updateConsentToggle();
+      consentCheckbox.addEventListener("change", syncConsentValue);
+      syncConsentValue();
     }
 
     toggleMajorOther();
@@ -777,7 +701,9 @@
         enforceGradYearValidity();
         enforcePhoneValidity();
         enforceMajorOtherValidity();
-        updateConsentToggle();
+        if (typeof syncConsentValue === "function") {
+          syncConsentValue();
+        }
 
         if (submitButton) {
           submitButton.disabled = true;
@@ -803,6 +729,87 @@
         setSubmittingState(false);
       }
     });
+  };
+
+  const initRsvpPrompt = () => {
+    const banner = document.querySelector("[data-rsvp-banner]");
+    if (!banner) {
+      return;
+    }
+
+    const storedChoice = getCookie(RSVP_PROMPT_COOKIE);
+    if (storedChoice) {
+      return;
+    }
+
+    banner.hidden = false;
+
+    const buttons = banner.querySelectorAll("[data-rsvp-choice]");
+    if (!buttons.length) {
+      return;
+    }
+
+    const handleChoice = (choice) => {
+      setCookie(RSVP_PROMPT_COOKIE, choice, 60);
+      banner.hidden = true;
+
+      if (choice === "yes") {
+        window.location.assign("apply.html#rsvp-form");
+      }
+    };
+
+    buttons.forEach((button) => {
+      button.addEventListener("click", () => {
+        const choice = button.getAttribute("data-rsvp-choice");
+        if (!choice) {
+          return;
+        }
+
+        handleChoice(choice);
+      });
+    });
+  };
+
+  const initAnchorOffsetScroll = () => {
+    const offsettable = new Set(["#rsvp-form"]);
+
+    const applyOffset = () => {
+      const hash = window.location.hash;
+      if (!hash) {
+        return;
+      }
+
+      const normalized = hash.toLowerCase();
+      if (!offsettable.has(normalized)) {
+        return;
+      }
+
+      const target = document.querySelector(hash);
+      if (!target) {
+        return;
+      }
+
+      const performScroll = () => {
+        const header = document.querySelector(".site-header");
+        const headerHeight = header ? header.offsetHeight : 0;
+        const targetTop = window.pageYOffset + target.getBoundingClientRect().top - headerHeight - 16;
+        window.scrollTo({
+          top: Math.max(targetTop, 0),
+          behavior: "smooth",
+        });
+      };
+
+      if (typeof window.requestAnimationFrame === "function") {
+        window.requestAnimationFrame(() => {
+          window.setTimeout(performScroll, 80);
+        });
+      } else {
+        window.setTimeout(performScroll, 80);
+      }
+    };
+
+    applyOffset();
+    window.addEventListener("hashchange", applyOffset);
   };
 
   const initPdfModal = () => {
@@ -1236,6 +1243,8 @@
     initScrollAnimations();
     initHeroTitleRotator();
     initFormInteractions();
+    initRsvpPrompt();
+    initAnchorOffsetScroll();
     initPdfModal();
     initCadenceCards();
   });

@@ -27,7 +27,7 @@
     />
     <link rel="icon" href="favicon.ico" />
     <link rel="apple-touch-icon" href="favicon.ico" />
-    <link rel="stylesheet" href="assets/css/style.css" />
+    <link rel="stylesheet" href="assets/css/style.css?V=01.10.25.5.53" />
   </head>
   <body>
     <header class="site-header">
@@ -154,10 +154,10 @@
         </div>
       </section>
 
-      <section class="section" aria-labelledby="application-form">
+      <section class="section" aria-labelledby="rsvp-form">
         <div class="wrapper split-layout">
           <article>
-            <h2 id="application-form" class="section-title" data-animate>Application form</h2>
+            <h2 id="rsvp-form" class="section-title" data-animate>RSVP form</h2>
             <p class="text-muted" data-animate>
               Share how we can reach you and what you’re studying. Required fields are marked and everything else is
               optional context that helps us tailor the right Cloud Network experience.
@@ -263,38 +263,25 @@
                   rows="5"
                 ></textarea>
               </div>
-              <div class="form-consent" data-consent-toggle>
-                <input type="hidden" name="consent" value="yes" data-consent-input />
-                <button
-                  class="consent-toggle"
-                  type="button"
-                  data-consent-button
-                  aria-pressed="true"
-                  aria-describedby="consent-copy"
-                >
-                  <span class="consent-toggle__surface" aria-hidden="true">
-                    <span class="consent-toggle__copy">
-                      <span class="consent-toggle__option consent-toggle__option--yes"
-                        >Yes, I agree to be contacted about Cloud Network Purdue events and opportunities</span
-                      >
-                      <span class="consent-toggle__option consent-toggle__option--no"
-                        >No, I do not agree to be contacted</span
-                      >
-                    </span>
-                    <span class="consent-toggle__divider" aria-hidden="true"></span>
+              <div class="form-consent">
+                <input type="hidden" name="consent" value="0" data-consent-fallback />
+                <input
+                  class="consent-toggle-input"
+                  type="checkbox"
+                  id="consent"
+                  name="consent"
+                  value="1"
+                  data-consent-checkbox
+                  checked
+                />
+                <label class="consent-toggle" for="consent">
+                  <span class="consent-toggle-track" aria-hidden="true">
+                    <span class="consent-toggle-thumb"></span>
                   </span>
-                  <span class="consent-toggle__thumb" aria-hidden="true">
-                    <span class="consent-toggle__thumb-glow"></span>
-                    <span class="consent-toggle__thumb-icon consent-toggle__thumb-icon--up" aria-hidden="true"></span>
-                    <span class="consent-toggle__thumb-icon consent-toggle__thumb-icon--down" aria-hidden="true"></span>
+                  <span class="consent-toggle-text">
+                    I agree to be contacted about Cloud Network Purdue events and opportunities.
                   </span>
-                  <span class="visually-hidden" data-consent-label>
-                    Yes, I agree to be contacted about Cloud Network Purdue events and opportunities
-                  </span>
-                </button>
-                <p id="consent-copy">
-                  I agree to be contacted about Cloud Network Purdue events and opportunities.
-                </p>
+                </label>
               </div>
               <div class="form-actions">
                 <button class="button" type="submit" data-submit-button>Submit RSVP</button>
@@ -339,6 +326,6 @@
     <script>
       document.getElementById("year").textContent = new Date().getFullYear();
     </script>
-    <script src="assets/js/main.js" defer></script>
+    <script src="assets/js/main.js?V=01.10.25.5.53" defer></script>
   </body>
 </html>
