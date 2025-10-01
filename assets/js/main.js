@@ -458,12 +458,14 @@
       const formData = new FormData(form);
 
       try {
-        const response = await fetch(form.getAttribute("action") || "/api/rsvp.php", {
-          method: (form.getAttribute("method") || "POST").toUpperCase(),
+        const endpoint = form.getAttribute("action") || "/api/rsvp.php";
+        const response = await fetch(endpoint, {
+          method: "POST",
           body: formData,
           headers: {
             Accept: "application/json",
           },
+          credentials: "same-origin",
         });
 
         if (!response.ok) {
