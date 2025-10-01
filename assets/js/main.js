@@ -482,10 +482,14 @@
     const updateConsentToggle = () => {
       if (!consentButton || !consentInput) return;
       const agreed = consentInput.value === "yes";
+      const labelText = agreed
+        ? "Yes, I agree to be contacted about Cloud Network Purdue events and opportunities"
+        : "No, I do not agree to be contacted";
       consentButton.setAttribute("aria-pressed", agreed ? "true" : "false");
-      const label = consentButton.querySelector("[data-consent-label]");
-      if (label) {
-        label.textContent = agreed ? "Yes, I agree" : "No, I do not agree";
+      consentButton.setAttribute("aria-label", labelText);
+      const srLabel = consentButton.querySelector("[data-consent-label]");
+      if (srLabel) {
+        srLabel.textContent = labelText;
       }
     };
 
@@ -501,7 +505,12 @@
     }
 
     if (phoneField) {
-      phoneField.setAttribute("aria-describedby", phoneField.getAttribute("aria-describedby") || "phone-hint");
+      const phoneHint = form.querySelector("#phone-hint");
+      if (phoneHint) {
+        phoneField.setAttribute("aria-describedby", phoneField.getAttribute("aria-describedby") || "phone-hint");
+      } else if (phoneField.getAttribute("aria-describedby") === "phone-hint") {
+        phoneField.removeAttribute("aria-describedby");
+      }
       phoneField.addEventListener("input", enforcePhoneValidity);
       phoneField.addEventListener("blur", enforcePhoneValidity);
     }
@@ -519,18 +528,117 @@
     }
 
     if (consentButton && consentInput) {
-      const toggleConsent = () => {
-        consentInput.value = consentInput.value === "yes" ? "no" : "yes";
+      const setConsent = (value) => {
+        if (consentInput.value === value) return;
+        consentInput.value = value;
         updateConsentToggle();
       };
 
-      consentButton.addEventListener("click", toggleConsent);
+      const toggleConsent = () => {
+        setConsent(consentInput.value === "yes" ? "no" : "yes");
+      };
+
+      let pointerStartY = null;
+      let pointerId = null;
+      let dragged = false;
+      let skipNextClick = false;
+
+      const clearPointerState = ({ preserveSkip } = {}) => {
+        pointerStartY = null;
+        pointerId = null;
+        dragged = false;
+        if (!preserveSkip) {
+          skipNextClick = false;
+        }
+        consentButton.classList.remove("is-dragging");
+      };
+
+      const handlePointerDown = (event) => {
+        pointerStartY = event.clientY;
+        pointerId = event.pointerId;
+        dragged = false;
+        skipNextClick = false;
+        consentButton.classList.add("is-dragging");
+        if (typeof consentButton.setPointerCapture === "function") {
+          try {
+            consentButton.setPointerCapture(event.pointerId);
+          } catch (error) {
+            /* noop */
+          }
+        }
+      };
+
+      const handlePointerMove = (event) => {
+        if (pointerStartY === null) return;
+        const delta = pointerStartY - event.clientY;
+        if (Math.abs(delta) < 28) return;
+        dragged = true;
+        pointerStartY = event.clientY;
+        const target = delta > 0 ? "no" : "yes";
+        setConsent(target);
+      };
+
+      const handlePointerEnd = (event) => {
+        if (!dragged) {
+          toggleConsent();
+          skipNextClick = true;
+        }
+
+        if (pointerId !== null && typeof consentButton.hasPointerCapture === "function") {
+          try {
+            if (consentButton.hasPointerCapture(pointerId)) {
+              consentButton.releasePointerCapture(pointerId);
+            }
+          } catch (error) {
+            /* noop */
+          }
+        }
+
+        clearPointerState({ preserveSkip: true });
+      };
+
+      const handlePointerCancel = () => {
+        if (pointerId !== null && typeof consentButton.hasPointerCapture === "function") {
+          try {
+            if (consentButton.hasPointerCapture(pointerId)) {
+              consentButton.releasePointerCapture(pointerId);
+            }
+          } catch (error) {
+            /* noop */
+          }
+        }
+        clearPointerState();
+      };
+
+      consentButton.addEventListener("pointerdown", handlePointerDown);
+      consentButton.addEventListener("pointermove", handlePointerMove);
+      consentButton.addEventListener("pointerup", handlePointerEnd);
+      consentButton.addEventListener("pointercancel", handlePointerCancel);
+      consentButton.addEventListener("lostpointercapture", () =>
+        clearPointerState({ preserveSkip: skipNextClick })
+      );
+
+      consentButton.addEventListener("click", (event) => {
+        if (skipNextClick) {
+          skipNextClick = false;
+          return;
+        }
+        toggleConsent();
+      });
+
       consentButton.addEventListener("keydown", (event) => {
         if (event.key === " " || event.key === "Enter") {
           event.preventDefault();
           toggleConsent();
+        } else if (event.key === "ArrowUp") {
+          event.preventDefault();
+          setConsent("no");
+        } else if (event.key === "ArrowDown") {
+          event.preventDefault();
+          setConsent("yes");
         }
       });
+
       updateConsentToggle();
     }
 
