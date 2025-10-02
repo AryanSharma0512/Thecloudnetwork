@@ -546,9 +546,10 @@
       });
     };
 
-    const enforcePurdueEmail = () => {
+    const enforcePurdueEmail = (event) => {
       if (!emailField) return;
       const value = emailField.value.trim();
+      const isTyping = event && event.type === "input";
       if (!value) {
         emailField.setCustomValidity("");
         clearFieldError(emailField);
@@ -557,16 +558,21 @@
 
       if (!value.toLowerCase().endsWith("@purdue.edu")) {
         emailField.setCustomValidity("Oops, this is only for Purdue students. Become a Boilermaker to join.");
-        showFieldError(emailField, emailField.validationMessage);
+        if (isTyping) {
+          clearFieldError(emailField);
+        } else {
+          showFieldError(emailField, emailField.validationMessage);
+        }
       } else {
         emailField.setCustomValidity("");
         clearFieldError(emailField);
       }
     };
 
-    const enforceGradYearValidity = () => {
+    const enforceGradYearValidity = (event) => {
       if (!gradYearField) return;
       const value = gradYearField.value.trim();
+      const isTyping = event && event.type === "input";
 
       if (!value) {
         gradYearField.setCustomValidity("");
@@ -576,14 +582,22 @@
 
       if (!/^\d{4}$/.test(value)) {
         gradYearField.setCustomValidity("Enter a four-digit graduation year (e.g., 2026).");
-        showFieldError(gradYearField, gradYearField.validationMessage);
+        if (isTyping) {
+          clearFieldError(gradYearField);
+        } else {
+          showFieldError(gradYearField, gradYearField.validationMessage);
+        }
         return;
       }
 
       const numeric = Number(value);
       if (Number.isFinite(numeric) && numeric > maxGradYear) {
         gradYearField.setCustomValidity(`Please choose a year no later than ${maxGradYear}.`);
-        showFieldError(gradYearField, gradYearField.validationMessage);
+        if (isTyping) {
+          clearFieldError(gradYearField);
+        } else {
+          showFieldError(gradYearField, gradYearField.validationMessage);
+        }
         return;
       }
 
@@ -591,12 +605,14 @@
       clearFieldError(gradYearField);
     };
 
-    const enforcePhoneValidity = () => {
+    const enforcePhoneValidity = (event) => {
       if (!phoneField) return;
       const digitsOnly = (phoneField.value || "").replace(/\D/g, "").slice(0, 10);
       if (phoneField.value !== digitsOnly) {
         phoneField.value = digitsOnly;
       }
+
+      const isTyping = event && event.type === "input";
 
       if (!digitsOnly) {
         phoneField.setCustomValidity("");
@@ -606,14 +622,18 @@
 
       if (digitsOnly.length !== 10) {
         phoneField.setCustomValidity("Enter a 10-digit U.S. phone number.");
-        showFieldError(phoneField, phoneField.validationMessage);
+        if (isTyping) {
+          clearFieldError(phoneField);
+        } else {
+          showFieldError(phoneField, phoneField.validationMessage);
+        }
       } else {
         phoneField.setCustomValidity("");
         clearFieldError(phoneField);
       }
     };
 
-    const enforceMajorOtherValidity = () => {
+    const enforceMajorOtherValidity = (event) => {
       if (!majorOtherInput) return;
       if (!majorOtherInput.required) {
         majorOtherInput.setCustomValidity("");
@@ -622,9 +642,14 @@
       }
 
       const value = majorOtherInput.value.trim();
+      const isTyping = event && event.type === "input";
       if (!value) {
         majorOtherInput.setCustomValidity("Please tell us your major.");
-        showFieldError(majorOtherInput, majorOtherInput.validationMessage);
+        if (isTyping) {
+          clearFieldError(majorOtherInput);
+        } else {
+          showFieldError(majorOtherInput, majorOtherInput.validationMessage);
+        }
       } else {
         majorOtherInput.setCustomValidity("");
         clearFieldError(majorOtherInput);
@@ -671,9 +696,9 @@
     }
 
     if (majorSelect) {
-      majorSelect.addEventListener("change", () => {
+      majorSelect.addEventListener("change", (event) => {
         toggleMajorOther();
-        enforceMajorOtherValidity();
+        enforceMajorOtherValidity(event);
       });
     }
 
