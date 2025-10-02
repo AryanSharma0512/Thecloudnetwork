@@ -141,10 +141,6 @@ if (is_array($consentRaw)) {
     $consentGiven = !empty($consentValue) && $consentValue !== '0';
 }
 
-if (!$consentGiven) {
-    respond(422, ['ok' => false, 'error' => 'Consent is required.']);
-}
-
 $pdo = null;
 try {
     $dbHost = get_env('APP_DB_HOST');
@@ -189,7 +185,8 @@ try {
     }
     $stmt->execute();
 
-    log_event($eventSlug, $email, 'success');
+    $consentCode = $consentGiven ? 'consent=1' : 'consent=0';
+    log_event($eventSlug, $email, 'success', $consentCode);
     respond(200, ['ok' => true, 'message' => 'RSVP recorded']);
 } catch (Throwable $e) {
     if ($pdo !== null) {
