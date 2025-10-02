@@ -430,18 +430,137 @@
       return;
     }
 
+    let fieldErrorUid = 0;
+
+    const isFieldElement = (element) => {
+      return element instanceof HTMLElement && element.matches("input, select, textarea");
+    };
+
+    const getFieldErrorId = (field) => {
+      if (!isFieldElement(field)) {
+        return null;
+      }
+
+      if (!field.dataset.errorId) {
+        fieldErrorUid += 1;
+        field.dataset.errorId = `field-error-${fieldErrorUid}`;
+      }
+
+      return field.dataset.errorId;
+    };
+
+    const getFieldHighlightTarget = (field) => {
+      if (!field || !(field instanceof HTMLElement)) {
+        return null;
+      }
+
+      return field.closest(".input-with-prefix") || field;
+    };
+
+    const getFieldContainer = (field) => {
+      if (!field || !(field instanceof HTMLElement)) {
+        return null;
+      }
+
+      const prefixWrapper = field.closest(".input-with-prefix");
+      if (prefixWrapper && prefixWrapper.parentElement) {
+        return prefixWrapper.parentElement;
+      }
+
+      return field.parentElement;
+    };
+
+    const showFieldError = (field, message) => {
+      if (!isFieldElement(field)) {
+        return;
+      }
+
+      const highlightTarget = getFieldHighlightTarget(field);
+      if (highlightTarget) {
+        highlightTarget.classList.add("input-invalid");
+      }
+
+      if (field !== highlightTarget) {
+        field.classList.add("input-invalid");
+      }
+
+      if (!message) {
+        return;
+      }
+
+      const container = getFieldContainer(field);
+      if (!container) {
+        return;
+      }
+
+      const errorId = getFieldErrorId(field);
+      let messageElement = errorId
+        ? container.querySelector(`.input-error-message[data-error-for="${errorId}"]`)
+        : null;
+      if (!messageElement) {
+        messageElement = document.createElement("p");
+        messageElement.className = "input-error-message";
+        if (errorId) {
+          messageElement.setAttribute("data-error-for", errorId);
+        }
+        container.appendChild(messageElement);
+      }
+
+      messageElement.textContent = message;
+    };
+
+    const clearFieldError = (field) => {
+      if (!isFieldElement(field)) {
+        return;
+      }
+
+      const highlightTarget = getFieldHighlightTarget(field);
+      if (highlightTarget) {
+        highlightTarget.classList.remove("input-invalid");
+      }
+
+      if (field !== highlightTarget) {
+        field.classList.remove("input-invalid");
+      }
+
+      const container = getFieldContainer(field);
+      if (!container) {
+        return;
+      }
+
+      const errorId = field.dataset.errorId;
+      const messageElement = errorId
+        ? container.querySelector(`.input-error-message[data-error-for="${errorId}"]`)
+        : container.querySelector(".input-error-message");
+      if (messageElement) {
+        messageElement.remove();
+      }
+    };
+
+    const clearAllFieldErrors = () => {
+      form.querySelectorAll(".input-invalid").forEach((element) => {
+        element.classList.remove("input-invalid");
+      });
+      form.querySelectorAll(".input-error-message").forEach((element) => {
+        element.remove();
+      });
+    };
+
     const enforcePurdueEmail = () => {
       if (!emailField) return;
       const value = emailField.value.trim();
       if (!value) {
         emailField.setCustomValidity("");
+        clearFieldError(emailField);
         return;
       }
 
       if (!value.toLowerCase().endsWith("@purdue.edu")) {
         emailField.setCustomValidity("Oops, this is only for Purdue students. Become a Boilermaker to join.");
+        showFieldError(emailField, emailField.validationMessage);
       } else {
         emailField.setCustomValidity("");
+        clearFieldError(emailField);
       }
     };
 
@@ -451,21 +570,25 @@
 
       if (!value) {
         gradYearField.setCustomValidity("");
+        clearFieldError(gradYearField);
         return;
       }
 
       if (!/^\d{4}$/.test(value)) {
         gradYearField.setCustomValidity("Enter a four-digit graduation year (e.g., 2026).");
+        showFieldError(gradYearField, gradYearField.validationMessage);
         return;
       }
 
       const numeric = Number(value);
       if (Number.isFinite(numeric) && numeric > maxGradYear) {
         gradYearField.setCustomValidity(`Please choose a year no later than ${maxGradYear}.`);
+        showFieldError(gradYearField, gradYearField.validationMessage);
         return;
       }
 
       gradYearField.setCustomValidity("");
+      clearFieldError(gradYearField);
     };
 
     const enforcePhoneValidity = () => {
@@ -477,13 +600,16 @@
 
       if (!digitsOnly) {
         phoneField.setCustomValidity("");
+        clearFieldError(phoneField);
         return;
       }
 
       if (digitsOnly.length !== 10) {
         phoneField.setCustomValidity("Enter a 10-digit U.S. phone number.");
+        showFieldError(phoneField, phoneField.validationMessage);
       } else {
         phoneField.setCustomValidity("");
+        clearFieldError(phoneField);
       }
     };
 
@@ -491,14 +617,17 @@
       if (!majorOtherInput) return;
       if (!majorOtherInput.required) {
         majorOtherInput.setCustomValidity("");
+        clearFieldError(majorOtherInput);
         return;
       }
 
       const value = majorOtherInput.value.trim();
       if (!value) {
         majorOtherInput.setCustomValidity("Please tell us your major.");
+        showFieldError(majorOtherInput, majorOtherInput.validationMessage);
       } else {
         majorOtherInput.setCustomValidity("");
+        clearFieldError(majorOtherInput);
       }
     };
 
@@ -552,6 +681,61 @@
       majorOtherInput.addEventListener("input", enforceMajorOtherValidity);
       majorOtherInput.addEventListener("blur", enforceMajorOtherValidity);
     }
+
+    form.addEventListener(
+      "invalid",
+      (event) => {
+        const field = event.target;
+        if (!isFieldElement(field)) {
+          return;
+        }
+
+        event.preventDefault();
+        const message = field.validationMessage || "Please double-check this field.";
+        showFieldError(field, message);
+      },
+      true
+    );
+
+    form.addEventListener(
+      "blur",
+      (event) => {
+        const field = event.target;
+        if (!isFieldElement(field)) {
+          return;
+        }
+
+        if (field.validity.valid) {
+          clearFieldError(field);
+        } else {
+          const message = field.validationMessage || "Please double-check this field.";
+          showFieldError(field, message);
+        }
+      },
+      true
+    );
+
+    form.addEventListener("input", (event) => {
+      const field = event.target;
+      if (!isFieldElement(field)) {
+        return;
+      }
+
+      if (field.validity.valid) {
+        clearFieldError(field);
+      }
+    });
+
+    form.addEventListener("change", (event) => {
+      const field = event.target;
+      if (!isFieldElement(field)) {
+        return;
+      }
+
+      if (field.validity.valid) {
+        clearFieldError(field);
+      }
+    });
 
     let syncConsentValue;
 
@@ -628,8 +812,13 @@
       enforceMajorOtherValidity();
 
       if (typeof form.checkValidity === "function" && !form.checkValidity()) {
-        if (typeof form.reportValidity === "function") {
-          form.reportValidity();
+        const firstInvalid = form.querySelector(":invalid");
+        if (firstInvalid && typeof firstInvalid.focus === "function") {
+          try {
+            firstInvalid.focus({ preventScroll: true });
+          } catch (error) {
+            firstInvalid.focus();
+          }
         }
         return;
       }
@@ -694,6 +883,7 @@
         }
 
         form.reset();
+        clearAllFieldErrors();
         renderStatus("You're all set! Check your email shortly.", "success");
 
         toggleMajorOther();
