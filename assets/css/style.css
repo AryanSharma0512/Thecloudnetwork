@@ -695,6 +695,31 @@ select:focus {
   box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25);
 }
 
+.input-invalid,
+.input-with-prefix.input-invalid {
+  border-color: rgba(248, 113, 113, 0.6);
+  background: rgba(127, 29, 29, 0.18);
+  box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.22);
+}
+
+.input-with-prefix.input-invalid {
+  box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.18);
+}
+
+.input-with-prefix.input-invalid .input-prefix {
+  background: linear-gradient(140deg, rgba(248, 113, 113, 0.35), rgba(248, 113, 113, 0.18));
+  color: rgba(254, 226, 226, 0.95);
+  text-shadow: 0 0 14px rgba(248, 113, 113, 0.5);
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.35), 0 8px 18px rgba(248, 113, 113, 0.3);
+}
+
+.input-error-message {
+  margin-top: 0.5rem;
+  font-size: 0.78rem;
+  color: rgba(252, 165, 165, 0.95);
+  letter-spacing: 0.04em;
+}
+
 textarea {
   resize: vertical;
   min-height: 160px;
