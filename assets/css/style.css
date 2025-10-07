@@ -738,6 +738,57 @@ textarea {
   overflow: hidden;
 }
 
+.already-registered-banner {
+  background: rgba(34, 197, 94, 0.14);
+  border: 1px solid rgba(74, 222, 128, 0.35);
+  border-radius: 0.75rem;
+  padding: 1.1rem 1.25rem;
+  margin-bottom: 1.75rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  color: var(--text-primary);
+  box-shadow: 0 18px 48px rgba(16, 185, 129, 0.18);
+}
+
+.already-registered-banner[hidden] {
+  display: none;
+}
+
+.already-registered-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.already-registered-message {
+  margin: 0;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 0.85rem;
+  color: rgba(236, 253, 245, 0.9);
+}
+
+.already-registered-name {
+  margin: 0;
+  font-size: 0.95rem;
+  color: rgba(190, 242, 217, 0.95);
+  letter-spacing: 0.02em;
+}
+
+.input-is-locked {
+  background: rgba(34, 197, 94, 0.1);
+  border-color: rgba(74, 222, 128, 0.45);
+  color: var(--text-primary);
+  cursor: default;
+}
+
+.input-is-locked:focus {
+  border-color: rgba(74, 222, 128, 0.65);
+  box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.25);
+}
+
 .input-with-prefix {
   position: relative;
   display: flex;
