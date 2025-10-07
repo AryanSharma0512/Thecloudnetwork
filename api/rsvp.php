@@ -237,8 +237,7 @@ try {
 
     $sql = 'INSERT INTO rsvps (event_slug, latest_event, full_name, email, phone, major, grad_year, notes, consent, ip, user_agent)
             VALUES (:event_slug, :latest_event, :full_name, :email, :phone, :major, :grad_year, :notes, :consent, :ip, :user_agent)
-            ON DUPLICATE KEY UPDATE latest_event = VALUES(latest_event), full_name = VALUES(full_name), phone = VALUES(phone), major = VALUES(major),
-                grad_year = VALUES(grad_year), notes = VALUES(notes), consent = VALUES(consent), ip = VALUES(ip), user_agent = VALUES(user_agent)';
+            ON DUPLICATE KEY UPDATE latest_event = VALUES(latest_event)';
 
     $stmt = $pdo->prepare($sql);
     $stmt->bindValue(':event_slug', $eventSlug);
