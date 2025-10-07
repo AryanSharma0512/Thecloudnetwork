@@ -157,33 +157,25 @@
       <section class="section" aria-labelledby="rsvp-form">
         <div class="wrapper split-layout">
           <article>
-            <h2 id="rsvp-form" class="section-title" data-animate>Join Us Form</h2>
+            <h2 id="rsvp-form" class="section-title" data-animate>Movie Night RSVP Form</h2>
             <p class="text-muted" data-animate>
               Share how we can reach you and what you’re studying. Required fields are marked and everything else is
               optional context that helps us tailor the right Cloud Network experience.
             </p>
-            <form class="form-card" action="/api/rsvp.php" method="POST" data-rsvp-form data-animate>
+            <form
+              class="form-card"
+              action="/api/rsvp.php"
+              method="POST"
+              data-rsvp-form
+              data-lookup-endpoint="/api/rsvp.php"
+              data-animate
+            >
               <div class="honeypot-field" aria-hidden="true">
                 <label for="apply-honey">Leave this field empty</label>
                 <input id="apply-honey" name="honey" type="text" tabindex="-1" autocomplete="off" data-honey />
               </div>
               <div class="form-grid">
-                <div>
-                  <label for="full_name"
-                    >Full name<span aria-hidden="true" class="required-indicator">*</span
-                    ><span class="visually-hidden"> required</span></label
-                  >
-                  <input
-                    id="full_name"
-                    name="full_name"
-                    type="text"
-                    placeholder="Jordan Rivera"
-                    autocomplete="name"
-                    maxlength="80"
-                    required
-                  />
-                </div>
-                <div>
+                <div data-field-group="email">
                   <label for="email"
                     >Email<span aria-hidden="true" class="required-indicator">*</span
                     ><span class="visually-hidden"> required</span></label
@@ -198,7 +190,22 @@
                     required
                   />
                 </div>
-                <div>
+                <div data-field-group="full_name">
+                  <label for="full_name"
+                    >Full name<span aria-hidden="true" class="required-indicator">*</span
+                    ><span class="visually-hidden"> required</span></label
+                  >
+                  <input
+                    id="full_name"
+                    name="full_name"
+                    type="text"
+                    placeholder="Jordan Rivera"
+                    autocomplete="name"
+                    maxlength="80"
+                    required
+                  />
+                </div>
+                <div data-field-group="phone">
                   <label for="phone">Phone</label>
                   <div class="input-with-prefix" data-phone-wrapper>
                     <span aria-hidden="true" class="input-prefix">+1</span>
@@ -214,7 +221,7 @@
                     />
                   </div>
                 </div>
-                <div>
+                <div data-field-group="major">
                   <label for="major">Major</label>
                   <select id="major" name="major" autocomplete="organization" data-major-select>
                     <option value="">Select your major</option>
@@ -238,7 +245,7 @@
                     />
                   </div>
                 </div>
-                <div>
+                <div data-field-group="grad_year">
                   <label for="grad_year">Graduation year</label>
                   <input
                     id="grad_year"
@@ -252,7 +259,7 @@
                   />
                 </div>
               </div>
-              <div style="margin-top: 1.5rem">
+              <div style="margin-top: 1.5rem" data-field-group="notes">
                 <label for="notes">Anything else we should know?</label>
                 <textarea
                   id="notes"
@@ -261,7 +268,7 @@
                   rows="5"
                 ></textarea>
               </div>
-              <div class="form-consent">
+              <div class="form-consent" data-field-group="consent">
                 <input type="hidden" name="consent" value="0" data-consent-fallback />
                 <input
                   class="consent-toggle-input"
@@ -282,7 +289,18 @@
                 </label>
               </div>
               <div class="form-actions">
-                <button class="button" type="submit" data-submit-button>Submit RSVP</button>
+                <button
+                  class="button"
+                  type="submit"
+                  data-submit-button
+                  data-submitting-text="Submitting..."
+                  data-success-text="Submitted!"
+                  data-returning-text="Confirm RSVP"
+                  data-returning-submitting-text="Confirming..."
+                  data-returning-success-text="Confirmed!"
+                >
+                  Submit RSVP
+                </button>
                 <div class="form-status" data-form-feedback aria-live="polite" role="status"></div>
               </div>
             </form>
@@ -324,6 +342,6 @@
     <script>
       document.getElementById("year").textContent = new Date().getFullYear();
     </script>
-    <script src="assets/js/main.js?V=01.10.25.5.63" defer></script>
+    <script src="assets/js/main.js?V=01.10.25.6.00" defer></script>
   </body>
 </html>
