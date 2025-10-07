@@ -74,7 +74,7 @@ function handle_lookup(): void
 
     try {
         $pdo = create_pdo();
-        $stmt = $pdo->prepare('SELECT event_slug, full_name, email, phone, major, grad_year, notes, consent FROM rsvps WHERE email = :email LIMIT 1');
+        $stmt = $pdo->prepare('SELECT event_slug, latest_event, full_name, email, phone, major, grad_year, notes, consent FROM rsvps WHERE email = :email LIMIT 1');
         $stmt->bindValue(':email', $email);
         $stmt->execute();
 
@@ -88,7 +88,12 @@ function handle_lookup(): void
         }
 
         $fullName = isset($record['full_name']) ? trim((string) $record['full_name']) : '';
-        $latestEvent = isset($record['event_slug']) ? (string) $record['event_slug'] : null;
+        $latestEvent = null;
+        if (isset($record['latest_event']) && $record['latest_event'] !== null && $record['latest_event'] !== '') {
+            $latestEvent = (string) $record['latest_event'];
+        } elseif (isset($record['event_slug'])) {
+            $latestEvent = (string) $record['event_slug'];
+        }
 
         $payload = [
             'status' => 'ok',
@@ -230,13 +235,14 @@ $pdo = null;
 try {
     $pdo = create_pdo();
 
-    $sql = 'INSERT INTO rsvps (event_slug, full_name, email, phone, major, grad_year, notes, consent, ip, user_agent)
-            VALUES (:event_slug, :full_name, :email, :phone, :major, :grad_year, :notes, :consent, :ip, :user_agent)
-            ON DUPLICATE KEY UPDATE full_name = VALUES(full_name), phone = VALUES(phone), major = VALUES(major),
+    $sql = 'INSERT INTO rsvps (event_slug, latest_event, full_name, email, phone, major, grad_year, notes, consent, ip, user_agent)
+            VALUES (:event_slug, :latest_event, :full_name, :email, :phone, :major, :grad_year, :notes, :consent, :ip, :user_agent)
+            ON DUPLICATE KEY UPDATE latest_event = VALUES(latest_event), full_name = VALUES(full_name), phone = VALUES(phone), major = VALUES(major),
                 grad_year = VALUES(grad_year), notes = VALUES(notes), consent = VALUES(consent), ip = VALUES(ip), user_agent = VALUES(user_agent)';
 
     $stmt = $pdo->prepare($sql);
     $stmt->bindValue(':event_slug', $eventSlug);
+    $stmt->bindValue(':latest_event', $eventSlug);
     $stmt->bindValue(':full_name', $fullName);
     $stmt->bindValue(':email', $email);
     $stmt->bindValue(':phone', $phone !== '' ? $phone : null);
