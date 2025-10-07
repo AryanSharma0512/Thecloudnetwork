@@ -1,5 +1,19 @@
 (function () {
-  const RSVP_PROMPT_COOKIE = "tcn_rsvp_prompt";
+  const RSVP_COOKIE_PREFIX = "tcn_rsvp_prompt_";
+  const RSVP_PROMPT_COOKIE_DEFAULT = `${RSVP_COOKIE_PREFIX}movie_night_20251010`;
+
+  const sanitizeCookieSegment = (value) => {
+    if (typeof value !== "string") {
+      return "";
+    }
+
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) {
+      return "";
+    }
+
+    return normalized.replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  };
 
   const setActiveNav = () => {
     const navLinks = document.querySelectorAll("nav.primary-nav a");
@@ -416,13 +430,41 @@
     const honeyField = form.querySelector("[data-honey]");
     const gradYearField = form.querySelector('[data-grad-year]') || form.querySelector('[name="grad_year"]');
     const emailField = form.querySelector('[data-purdue-email]');
+    const nameField = form.querySelector('[name="full_name"]');
     const phoneField = form.querySelector('[data-phone-input]');
     const majorSelect = form.querySelector('[data-major-select]');
     const majorOtherContainer = form.querySelector('[data-major-other]');
     const majorOtherInput = form.querySelector('[data-major-other-input]');
+    const notesField = form.querySelector('#notes');
     const consentCheckbox = form.querySelector('[data-consent-checkbox]');
     const consentFallback = form.querySelector('[data-consent-fallback]');
+    const fieldGroups = {
+      email: form.querySelector('[data-field-group="email"]'),
+      fullName: form.querySelector('[data-field-group="full_name"]'),
+      phone: form.querySelector('[data-field-group="phone"]'),
+      major: form.querySelector('[data-field-group="major"]'),
+      gradYear: form.querySelector('[data-field-group="grad_year"]'),
+      notes: form.querySelector('[data-field-group="notes"]'),
+      consent: form.querySelector('[data-field-group="consent"]'),
+    };
+
     const defaultButtonText = submitButton ? submitButton.textContent : "";
+    const defaultSubmittingText = submitButton
+      ? submitButton.getAttribute("data-submitting-text") || "Submitting..."
+      : "Submitting...";
+    const defaultSuccessText = submitButton
+      ? submitButton.getAttribute("data-success-text") || "Submitted!"
+      : "Submitted!";
+    const returningButtonText = submitButton
+      ? submitButton.getAttribute("data-returning-text") || "Confirm RSVP"
+      : "Confirm RSVP";
+    const returningSubmittingText = submitButton
+      ? submitButton.getAttribute("data-returning-submitting-text") || "Confirming..."
+      : "Confirming...";
+    const returningSuccessText = submitButton
+      ? submitButton.getAttribute("data-returning-success-text") || "Confirmed!"
+      : "Confirmed!";
+
     const currentYear = new Date().getFullYear();
     const maxGradYear = currentYear + 5;
 
@@ -431,6 +473,12 @@
     }
 
     let fieldErrorUid = 0;
+    let isReturningUser = false;
+    let lookupDebounceId = null;
+    let activeLookupController = null;
+    let pendingLookupEmailNormalized = null;
+    let lastLookupEmailNormalized = "";
+    const lookupCache = new Map();
 
     const isFieldElement = (element) => {
       return element instanceof HTMLElement && element.matches("input, select, textarea");
@@ -656,19 +704,42 @@
       }
     };
 
+    const setGroupHidden = (element, hidden) => {
+      if (!element) {
+        return;
+      }
+      element.hidden = hidden;
+      if (hidden) {
+        element.setAttribute("aria-hidden", "true");
+      } else {
+        element.removeAttribute("aria-hidden");
+      }
+    };
+
+    const returningFieldGroups = [
+      fieldGroups.phone,
+      fieldGroups.major,
+      fieldGroups.gradYear,
+      fieldGroups.notes,
+      fieldGroups.consent,
+    ];
+
     const toggleMajorOther = () => {
       if (!majorSelect) return;
       const isOther = majorSelect.value === "other";
+      const shouldShow = isOther && !isReturningUser;
 
       if (majorOtherContainer) {
-        majorOtherContainer.hidden = !isOther;
+        majorOtherContainer.hidden = !shouldShow;
       }
 
       if (majorOtherInput) {
-        majorOtherInput.required = isOther;
-        if (!isOther) {
-          majorOtherInput.value = "";
+        majorOtherInput.required = shouldShow;
+        if (!shouldShow) {
           majorOtherInput.setCustomValidity("");
+          if (!isOther) {
+            majorOtherInput.value = "";
+          }
         }
       }
     };
@@ -818,14 +889,360 @@
       if (!submitButton) return;
       if (isSubmitting) {
         submitButton.disabled = true;
-        submitButton.dataset.state = "submitting";
-        submitButton.textContent = "Submitting...";
+        submitButton.dataset.state = isReturningUser ? "confirming" : "submitting";
+        submitButton.textContent = isReturningUser ? returningSubmittingText : defaultSubmittingText;
       } else {
         submitButton.disabled = false;
-        submitButton.textContent = defaultButtonText;
+        submitButton.textContent = isReturningUser ? returningButtonText : defaultButtonText;
         delete submitButton.dataset.state;
       }
     };
+
+    const getLookupEndpoint = () => {
+      const lookupAttr = form.getAttribute("data-lookup-endpoint");
+      if (lookupAttr && lookupAttr.trim()) {
+        return lookupAttr.trim();
+      }
+      const action = form.getAttribute("action");
+      if (action && action.trim()) {
+        return action.trim();
+      }
+      return "/api/rsvp.php";
+    };
+
+    const buildLookupUrl = (endpoint, emailValue) => {
+      try {
+        const origin = window.location.origin || `${window.location.protocol}//${window.location.host}`;
+        const url = new URL(endpoint, origin);
+        url.searchParams.set("lookup", "1");
+        url.searchParams.set("email", emailValue);
+        return url.toString();
+      } catch (error) {
+        const separator = endpoint.includes("?") ? "&" : "?";
+        return `${endpoint}${separator}lookup=1&email=${encodeURIComponent(emailValue)}`;
+      }
+    };
+
+    const interpretLookupResponse = (payload) => {
+      if (!payload || typeof payload !== "object") {
+        return { found: false, data: null };
+      }
+
+      const data = typeof payload.data === "object" && payload.data !== null ? payload.data : null;
+      const foundFlag = payload.found ?? payload.exists ?? payload.present;
+      const truthy = foundFlag === true || foundFlag === "true" || foundFlag === 1;
+      const falsy = foundFlag === false || foundFlag === "false" || foundFlag === 0;
+
+      if (truthy) {
+        return { found: true, data };
+      }
+
+      if (falsy) {
+        return { found: false, data: null };
+      }
+
+      if (payload.ok === true && data) {
+        return { found: true, data };
+      }
+
+      return { found: false, data: null };
+    };
+
+    const extractFullName = (data) => {
+      if (!data || typeof data !== "object") {
+        return "";
+      }
+      const direct = typeof data.full_name === "string" ? data.full_name : null;
+      const camel = typeof data.fullName === "string" ? data.fullName : null;
+      return (direct || camel || "").trim();
+    };
+
+    const resetReturningUserMode = ({ force = false, resetButtonText = false } = {}) => {
+      if (!force && !isReturningUser) {
+        return;
+      }
+
+      isReturningUser = false;
+      form.classList.remove("is-returning-user");
+      form.dataset.userState = "new";
+      returningFieldGroups.forEach((group) => {
+        setGroupHidden(group, false);
+      });
+
+      if (majorOtherContainer) {
+        const shouldHide = !majorSelect || majorSelect.value !== "other";
+        majorOtherContainer.hidden = shouldHide;
+      }
+
+      if (majorOtherInput) {
+        majorOtherInput.required = Boolean(majorSelect && majorSelect.value === "other");
+      }
+
+      if (submitButton) {
+        submitButton.disabled = false;
+        delete submitButton.dataset.mode;
+        if (resetButtonText || !submitButton.dataset.state || submitButton.dataset.state !== "success") {
+          submitButton.textContent = defaultButtonText;
+        }
+      }
+
+      clearAllFieldErrors();
+      clearStatus();
+
+      if (typeof syncConsentValue === "function") {
+        syncConsentValue();
+      }
+
+      toggleMajorOther();
+    };
+
+    const setReturningUserMode = (userData) => {
+      const data = userData && typeof userData === "object" ? userData : {};
+      const nameValue = extractFullName(data);
+      if (!nameValue) {
+        resetReturningUserMode({ force: true });
+        return;
+      }
+
+      isReturningUser = true;
+      form.classList.add("is-returning-user");
+      form.dataset.userState = "returning";
+      clearAllFieldErrors();
+      clearStatus();
+
+      if (emailField && typeof data.email === "string" && data.email.trim()) {
+        emailField.value = data.email.trim();
+      }
+
+      if (nameField) {
+        nameField.value = nameValue;
+      }
+
+      if (phoneField && typeof data.phone === "string") {
+        phoneField.value = data.phone;
+      }
+
+      const majorValue = typeof data.major === "string" ? data.major : "";
+      if (majorSelect) {
+        const options = Array.from(majorSelect.options || []);
+        const hasOption = options.some((option) => option.value === majorValue);
+        if (majorValue && hasOption) {
+          majorSelect.value = majorValue;
+        } else if (majorValue) {
+          majorSelect.value = "other";
+          if (majorOtherInput) {
+            majorOtherInput.value = majorValue;
+          }
+        } else {
+          majorSelect.value = "";
+        }
+      }
+
+      if (typeof data.major_other === "string" && majorOtherInput) {
+        majorOtherInput.value = data.major_other;
+      }
+
+      const gradYearValue =
+        typeof data.grad_year === "string"
+          ? data.grad_year
+          : typeof data.gradYear === "string"
+          ? data.gradYear
+          : "";
+      if (gradYearField && gradYearValue) {
+        gradYearField.value = gradYearValue;
+      }
+
+      if (notesField && typeof data.notes === "string") {
+        notesField.value = data.notes;
+      }
+
+      if (consentCheckbox) {
+        const consentValue = data.consent ?? data.consent_given ?? data.consentGiven ?? data.opt_in;
+        if (consentValue !== undefined) {
+          const truthy = consentValue === true || consentValue === 1 || consentValue === "1" || consentValue === "true";
+          consentCheckbox.checked = truthy;
+        }
+      }
+
+      if (typeof syncConsentValue === "function") {
+        syncConsentValue();
+      }
+
+      returningFieldGroups.forEach((group) => {
+        setGroupHidden(group, true);
+      });
+
+      if (majorOtherContainer) {
+        majorOtherContainer.hidden = true;
+      }
+
+      if (majorOtherInput) {
+        majorOtherInput.required = false;
+      }
+
+      if (submitButton) {
+        submitButton.disabled = false;
+        delete submitButton.dataset.state;
+        submitButton.dataset.mode = "returning";
+        submitButton.textContent = returningButtonText;
+      }
+
+      toggleMajorOther();
+    };
+
+    const applyLookupState = (normalizedEmail, result) => {
+      lastLookupEmailNormalized = normalizedEmail;
+      if (result && result.found && result.data && extractFullName(result.data)) {
+        setReturningUserMode(result.data);
+      } else {
+        resetReturningUserMode({ force: true, resetButtonText: true });
+      }
+    };
+
+    const cancelPendingLookup = () => {
+      if (lookupDebounceId !== null) {
+        window.clearTimeout(lookupDebounceId);
+        lookupDebounceId = null;
+      }
+
+      if (activeLookupController) {
+        activeLookupController.abort();
+        activeLookupController = null;
+      }
+
+      pendingLookupEmailNormalized = null;
+    };
+
+    const performLookup = async (emailValue, normalizedEmail) => {
+      cancelPendingLookup();
+
+      const controller = new AbortController();
+      activeLookupController = controller;
+      pendingLookupEmailNormalized = normalizedEmail;
+
+      const endpoint = getLookupEndpoint();
+      const requestUrl = buildLookupUrl(endpoint, emailValue);
+
+      try {
+        const response = await fetch(requestUrl, {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+          },
+          credentials: "same-origin",
+          signal: controller.signal,
+        });
+
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        if (response.status === 404) {
+          lookupCache.set(normalizedEmail, { found: false, data: null });
+          applyLookupState(normalizedEmail, { found: false, data: null });
+          return;
+        }
+
+        if (!response.ok) {
+          lookupCache.delete(normalizedEmail);
+          resetReturningUserMode({ force: true, resetButtonText: true });
+          lastLookupEmailNormalized = "";
+          return;
+        }
+
+        let payload = null;
+        try {
+          payload = await response.json();
+        } catch (error) {
+          lookupCache.delete(normalizedEmail);
+          resetReturningUserMode({ force: true, resetButtonText: true });
+          lastLookupEmailNormalized = "";
+          return;
+        }
+
+        const interpreted = interpretLookupResponse(payload);
+        if (interpreted && interpreted.found && interpreted.data && !extractFullName(interpreted.data)) {
+          interpreted.found = false;
+          interpreted.data = null;
+        }
+        lookupCache.set(normalizedEmail, interpreted);
+        applyLookupState(normalizedEmail, interpreted);
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          lookupCache.delete(normalizedEmail);
+          resetReturningUserMode({ force: true, resetButtonText: true });
+          lastLookupEmailNormalized = "";
+        }
+      } finally {
+        if (activeLookupController === controller) {
+          activeLookupController = null;
+        }
+        pendingLookupEmailNormalized = null;
+      }
+    };
+
+    const scheduleLookup = (emailValue, normalizedEmail) => {
+      if (lookupDebounceId !== null) {
+        window.clearTimeout(lookupDebounceId);
+      }
+
+      lookupDebounceId = window.setTimeout(() => {
+        lookupDebounceId = null;
+        performLookup(emailValue, normalizedEmail);
+      }, 320);
+    };
+
+    const handleEmailLookupTrigger = () => {
+      if (!emailField) {
+        return;
+      }
+
+      const rawValue = emailField.value || "";
+      const trimmed = rawValue.trim();
+      const normalized = trimmed.toLowerCase();
+
+      if (!trimmed) {
+        cancelPendingLookup();
+        lastLookupEmailNormalized = "";
+        resetReturningUserMode({ force: true, resetButtonText: true });
+        return;
+      }
+
+      const atIndex = normalized.lastIndexOf("@");
+      if (atIndex <= 0) {
+        cancelPendingLookup();
+        lastLookupEmailNormalized = "";
+        resetReturningUserMode({ force: true, resetButtonText: true });
+        return;
+      }
+
+      const domain = normalized.slice(atIndex + 1);
+      if (domain !== "purdue.edu") {
+        cancelPendingLookup();
+        lastLookupEmailNormalized = "";
+        resetReturningUserMode({ force: true, resetButtonText: true });
+        return;
+      }
+
+      if (lookupCache.has(normalized)) {
+        applyLookupState(normalized, lookupCache.get(normalized));
+        return;
+      }
+
+      if (pendingLookupEmailNormalized === normalized || lastLookupEmailNormalized === normalized) {
+        return;
+      }
+
+      scheduleLookup(trimmed, normalized);
+    };
+
+    if (emailField) {
+      emailField.addEventListener("input", handleEmailLookupTrigger);
+      emailField.addEventListener("blur", handleEmailLookupTrigger);
+    }
+
+    resetReturningUserMode({ force: true, resetButtonText: true });
+    handleEmailLookupTrigger();
 
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -867,13 +1284,17 @@
 
       const formData = new FormData(form);
 
+      let sanitizedPhoneValue = "";
       if (phoneField) {
         const sanitizedPhone = (phoneField.value || "").replace(/\D/g, "").slice(0, 10);
+        sanitizedPhoneValue = sanitizedPhone;
         formData.set("phone", sanitizedPhone);
       }
 
+      let majorOtherSubmittedValue = "";
       if (majorOtherInput) {
         const trimmedOther = majorOtherInput.value ? majorOtherInput.value.trim() : "";
+        majorOtherSubmittedValue = trimmedOther;
         formData.set("major_other", trimmedOther);
       }
 
@@ -907,11 +1328,43 @@
           return;
         }
 
-        form.reset();
+        const submittedEmailValue = emailField ? emailField.value.trim() : "";
+        const normalizedSubmittedEmail = submittedEmailValue.toLowerCase();
+        const submittedFullName = nameField ? nameField.value.trim() : "";
+        const submittedNotesValue = notesField ? notesField.value.trim() : "";
+        const submittedGradYearValue = gradYearField ? (gradYearField.value || "").trim() : "";
+        const consentState = consentCheckbox ? consentCheckbox.checked : false;
+        const submittedPhoneValue = sanitizedPhoneValue || (phoneField ? (phoneField.value || "") : "");
+        const resolvedMajorValue = (() => {
+          if (!majorSelect) {
+            return "";
+          }
+          const currentValue = majorSelect.value || "";
+          if (currentValue === "other") {
+            if (majorOtherSubmittedValue) {
+              return majorOtherSubmittedValue;
+            }
+            const fallback = majorOtherInput ? majorOtherInput.value.trim() : "";
+            return fallback || currentValue;
+          }
+          return currentValue;
+        })();
+        const storedMajorOtherValue =
+          majorOtherSubmittedValue || (majorOtherInput ? majorOtherInput.value.trim() : "");
+
+        const submittedAsReturning = isReturningUser;
+
+        if (!submittedAsReturning) {
+          form.reset();
+        }
+
         clearAllFieldErrors();
         renderStatus("You're all set! Check your email shortly.", "success");
 
-        toggleMajorOther();
+        if (!submittedAsReturning) {
+          toggleMajorOther();
+        }
+
         enforcePurdueEmail();
         enforceGradYearValidity();
         enforcePhoneValidity();
@@ -920,13 +1373,47 @@
           syncConsentValue();
         }
 
+        const shouldCacheResult =
+          normalizedSubmittedEmail.endsWith("@purdue.edu") && submittedFullName !== "";
+
+        if (shouldCacheResult) {
+          const cachedData = {
+            email: submittedEmailValue,
+            full_name: submittedFullName,
+          };
+
+          if (submittedPhoneValue) {
+            cachedData.phone = submittedPhoneValue;
+          }
+
+          if (submittedGradYearValue) {
+            cachedData.grad_year = submittedGradYearValue;
+          }
+
+          if (resolvedMajorValue) {
+            cachedData.major = resolvedMajorValue;
+          }
+
+          if (storedMajorOtherValue) {
+            cachedData.major_other = storedMajorOtherValue;
+          }
+
+          if (submittedNotesValue) {
+            cachedData.notes = submittedNotesValue;
+          }
+
+          cachedData.consent = consentState ? 1 : 0;
+
+          lookupCache.set(normalizedSubmittedEmail, { found: true, data: cachedData });
+        }
+
         if (submitButton) {
           submitButton.disabled = true;
           submitButton.dataset.state = "success";
-          submitButton.textContent = "Submitted!";
+          submitButton.textContent = submittedAsReturning ? returningSuccessText : defaultSuccessText;
           window.setTimeout(() => {
             submitButton.disabled = false;
-            submitButton.textContent = defaultButtonText;
+            submitButton.textContent = submittedAsReturning ? returningButtonText : defaultButtonText;
             delete submitButton.dataset.state;
           }, 1600);
         }
@@ -946,13 +1433,34 @@
     });
   };
 
+
   const initRsvpPrompt = () => {
     const banner = document.querySelector("[data-rsvp-banner]");
     if (!banner) {
       return;
     }
 
-    const storedChoice = getCookie(RSVP_PROMPT_COOKIE);
+    const resolveCookieName = () => {
+      const explicit = banner.getAttribute("data-rsvp-cookie");
+      if (explicit && explicit.trim()) {
+        return explicit.trim();
+      }
+
+      const eventKey = banner.getAttribute("data-rsvp-event");
+      if (eventKey && eventKey.trim()) {
+        const sanitized = sanitizeCookieSegment(eventKey);
+        if (sanitized) {
+          return `${RSVP_COOKIE_PREFIX}${sanitized}`;
+        }
+      }
+
+      return RSVP_PROMPT_COOKIE_DEFAULT;
+    };
+
+    const cookieName = resolveCookieName();
+    banner.dataset.cookieName = cookieName;
+
+    const storedChoice = getCookie(cookieName);
     if (storedChoice) {
       return;
     }
@@ -965,7 +1473,7 @@
     }
 
     const handleChoice = (choice) => {
-      setCookie(RSVP_PROMPT_COOKIE, choice, 60);
+      setCookie(cookieName, choice, 60);
       banner.hidden = true;
 
       if (choice === "yes") {
