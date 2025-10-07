@@ -438,6 +438,11 @@
     const notesField = form.querySelector('#notes');
     const consentCheckbox = form.querySelector('[data-consent-checkbox]');
     const consentFallback = form.querySelector('[data-consent-fallback]');
+    const alreadyRegisteredBanner = form.querySelector('[data-already-registered]');
+    const alreadyRegisteredName = alreadyRegisteredBanner
+      ? alreadyRegisteredBanner.querySelector('[data-already-registered-name]')
+      : null;
+    const formActions = form.querySelector('[data-form-actions]');
     const fieldGroups = {
       email: form.querySelector('[data-field-group="email"]'),
       fullName: form.querySelector('[data-field-group="full_name"]'),
@@ -474,10 +479,10 @@
 
     let fieldErrorUid = 0;
     let isReturningUser = false;
-    let lookupDebounceId = null;
+    let isAlreadyRegistered = false;
+    let lookupErrorActive = false;
     let activeLookupController = null;
     let pendingLookupEmailNormalized = null;
-    let lastLookupEmailNormalized = "";
     const lookupCache = new Map();
 
     const isFieldElement = (element) => {
@@ -716,6 +721,91 @@
       }
     };
 
+    const showAlreadyRegisteredBanner = (nameValue) => {
+      if (!alreadyRegisteredBanner) {
+        return;
+      }
+
+      alreadyRegisteredBanner.hidden = false;
+      alreadyRegisteredBanner.removeAttribute("aria-hidden");
+
+      if (alreadyRegisteredName) {
+        if (nameValue) {
+          alreadyRegisteredName.textContent = `Registered as ${nameValue}`;
+          alreadyRegisteredName.hidden = false;
+        } else {
+          alreadyRegisteredName.textContent = "";
+          alreadyRegisteredName.hidden = true;
+        }
+      }
+    };
+
+    const hideAlreadyRegisteredBanner = () => {
+      if (!alreadyRegisteredBanner) {
+        return;
+      }
+
+      alreadyRegisteredBanner.hidden = true;
+      alreadyRegisteredBanner.setAttribute("aria-hidden", "true");
+
+      if (alreadyRegisteredName) {
+        alreadyRegisteredName.textContent = "";
+        alreadyRegisteredName.hidden = true;
+      }
+    };
+
+    const setNameFieldLocked = (locked) => {
+      if (!nameField) {
+        return;
+      }
+
+      if (locked) {
+        nameField.readOnly = true;
+        nameField.classList.add("input-is-locked");
+        nameField.setAttribute("aria-readonly", "true");
+      } else {
+        nameField.readOnly = false;
+        nameField.classList.remove("input-is-locked");
+        nameField.removeAttribute("aria-readonly");
+      }
+    };
+
+    const setSubmitVisibility = (visible) => {
+      if (!submitButton) {
+        return;
+      }
+
+      if (visible) {
+        submitButton.hidden = false;
+        submitButton.removeAttribute("aria-hidden");
+        submitButton.disabled = false;
+      } else {
+        submitButton.hidden = true;
+        submitButton.setAttribute("aria-hidden", "true");
+        submitButton.disabled = true;
+      }
+
+      if (formActions) {
+        if (visible) {
+          formActions.removeAttribute("data-form-hidden");
+          formActions.removeAttribute("aria-hidden");
+        } else {
+          formActions.setAttribute("data-form-hidden", "true");
+          formActions.setAttribute("aria-hidden", "true");
+        }
+      }
+    };
+
+    const setConsentDisabled = (disabled) => {
+      if (consentCheckbox) {
+        consentCheckbox.disabled = disabled;
+      }
+
+      if (consentFallback) {
+        consentFallback.disabled = disabled;
+      }
+    };
+
     const returningFieldGroups = [
       fieldGroups.phone,
       fieldGroups.major,
@@ -724,10 +814,61 @@
       fieldGroups.consent,
     ];
 
+    const clearLookupErrorState = () => {
+      if (!lookupErrorActive) {
+        return;
+      }
+
+      lookupErrorActive = false;
+      if (emailField) {
+        clearFieldError(emailField);
+      }
+    };
+
+    const setLookupErrorState = () => {
+      lookupErrorActive = true;
+      isReturningUser = false;
+      isAlreadyRegistered = false;
+
+      form.classList.remove("is-returning-user");
+      form.classList.remove("is-already-registered");
+      form.dataset.userState = "lookup-error";
+
+      hideAlreadyRegisteredBanner();
+      setNameFieldLocked(false);
+      setConsentDisabled(true);
+      clearAllFieldErrors();
+      clearStatus();
+
+      Object.entries(fieldGroups).forEach(([key, group]) => {
+        if (group && key !== "email") {
+          setGroupHidden(group, true);
+        }
+      });
+
+      if (majorOtherContainer) {
+        majorOtherContainer.hidden = true;
+      }
+
+      if (majorOtherInput) {
+        majorOtherInput.required = false;
+      }
+
+      setSubmitVisibility(false);
+
+      if (submitButton) {
+        delete submitButton.dataset.mode;
+      }
+
+      if (emailField) {
+        showFieldError(emailField, "Couldn't verify, please try again.");
+      }
+    };
+
     const toggleMajorOther = () => {
       if (!majorSelect) return;
       const isOther = majorSelect.value === "other";
-      const shouldShow = isOther && !isReturningUser;
+      const shouldShow = isOther && !isReturningUser && !isAlreadyRegistered && !lookupErrorActive;
 
       if (majorOtherContainer) {
         majorOtherContainer.hidden = !shouldShow;
@@ -886,7 +1027,7 @@
     };
 
     const setSubmittingState = (isSubmitting) => {
-      if (!submitButton) return;
+      if (!submitButton || submitButton.hidden) return;
       if (isSubmitting) {
         submitButton.disabled = true;
         submitButton.dataset.state = isReturningUser ? "confirming" : "submitting";
@@ -925,27 +1066,62 @@
 
     const interpretLookupResponse = (payload) => {
       if (!payload || typeof payload !== "object") {
-        return { found: false, data: null };
+        return { found: false, data: null, meta: null };
       }
 
       const data = typeof payload.data === "object" && payload.data !== null ? payload.data : null;
-      const foundFlag = payload.found ?? payload.exists ?? payload.present;
+      const foundFlag = payload.found ?? payload.exists ?? payload.present ?? payload.existingUser;
       const truthy = foundFlag === true || foundFlag === "true" || foundFlag === 1;
       const falsy = foundFlag === false || foundFlag === "false" || foundFlag === 0;
 
-      if (truthy) {
-        return { found: true, data };
+      const normalizeEvent = (value) => {
+        if (typeof value !== "string") {
+          return null;
+        }
+        const trimmed = value.trim();
+        return trimmed ? trimmed : null;
+      };
+
+      const meta = {
+        existingUser:
+          payload.existingUser === true ||
+          payload.existingUser === "true" ||
+          payload.existingUser === 1 ||
+          truthy === true,
+        latestEvent: normalizeEvent(payload.latest_event ?? payload.latestEvent),
+        currentEvent: normalizeEvent(payload.current_event ?? payload.currentEvent),
+        name: typeof payload.name === "string" ? payload.name.trim() : "",
+      };
+
+      if (!meta.latestEvent && data) {
+        if (typeof data.latest_event === "string" && data.latest_event.trim()) {
+          meta.latestEvent = data.latest_event.trim();
+        } else if (typeof data.event_slug === "string" && data.event_slug.trim()) {
+          meta.latestEvent = data.event_slug.trim();
+        }
+      }
+
+      if (!meta.currentEvent && data && typeof data.current_event === "string" && data.current_event.trim()) {
+        meta.currentEvent = data.current_event.trim();
+      }
+
+      if (!meta.name && data) {
+        meta.name = extractFullName(data);
+      }
+
+      if (truthy || (meta.existingUser && data)) {
+        return { found: true, data, meta };
       }
 
       if (falsy) {
-        return { found: false, data: null };
+        return { found: false, data: null, meta };
       }
 
       if (payload.ok === true && data) {
-        return { found: true, data };
+        return { found: true, data, meta };
       }
 
-      return { found: false, data: null };
+      return { found: false, data: null, meta };
     };
 
     const extractFullName = (data) => {
@@ -958,15 +1134,28 @@
     };
 
     const resetReturningUserMode = ({ force = false, resetButtonText = false } = {}) => {
-      if (!force && !isReturningUser) {
+      if (!force && !isReturningUser && !isAlreadyRegistered && !lookupErrorActive) {
         return;
       }
 
+      clearLookupErrorState();
+
       isReturningUser = false;
+      isAlreadyRegistered = false;
+      lookupErrorActive = false;
+
       form.classList.remove("is-returning-user");
+      form.classList.remove("is-already-registered");
       form.dataset.userState = "new";
-      returningFieldGroups.forEach((group) => {
-        setGroupHidden(group, false);
+
+      hideAlreadyRegisteredBanner();
+      setNameFieldLocked(false);
+      setConsentDisabled(false);
+
+      Object.values(fieldGroups).forEach((group) => {
+        if (group) {
+          setGroupHidden(group, false);
+        }
       });
 
       if (majorOtherContainer) {
@@ -977,6 +1166,8 @@
       if (majorOtherInput) {
         majorOtherInput.required = Boolean(majorSelect && majorSelect.value === "other");
       }
+
+      setSubmitVisibility(true);
 
       if (submitButton) {
         submitButton.disabled = false;
@@ -1004,11 +1195,25 @@
         return;
       }
 
+      clearLookupErrorState();
       isReturningUser = true;
+      isAlreadyRegistered = false;
+      lookupErrorActive = false;
       form.classList.add("is-returning-user");
+      form.classList.remove("is-already-registered");
       form.dataset.userState = "returning";
       clearAllFieldErrors();
       clearStatus();
+
+      hideAlreadyRegisteredBanner();
+      setNameFieldLocked(false);
+      setConsentDisabled(false);
+
+      Object.values(fieldGroups).forEach((group) => {
+        if (group) {
+          setGroupHidden(group, false);
+        }
+      });
 
       if (emailField && typeof data.email === "string" && data.email.trim()) {
         emailField.value = data.email.trim();
@@ -1080,6 +1285,7 @@
         majorOtherInput.required = false;
       }
 
+      setSubmitVisibility(true);
       if (submitButton) {
         submitButton.disabled = false;
         delete submitButton.dataset.state;
@@ -1090,21 +1296,146 @@
       toggleMajorOther();
     };
 
-    const applyLookupState = (normalizedEmail, result) => {
-      lastLookupEmailNormalized = normalizedEmail;
-      if (result && result.found && result.data && extractFullName(result.data)) {
-        setReturningUserMode(result.data);
-      } else {
-        resetReturningUserMode({ force: true, resetButtonText: true });
+    const setAlreadyRegisteredMode = (userData, meta) => {
+      const data = userData && typeof userData === "object" ? userData : {};
+      const metaInfo = meta && typeof meta === "object" ? meta : {};
+      const resolvedName =
+        (typeof metaInfo.name === "string" && metaInfo.name.trim()) || extractFullName(data);
+
+      clearLookupErrorState();
+      isReturningUser = false;
+      isAlreadyRegistered = true;
+      lookupErrorActive = false;
+
+      form.classList.remove("is-returning-user");
+      form.classList.add("is-already-registered");
+      form.dataset.userState = "already-registered";
+
+      clearAllFieldErrors();
+      clearStatus();
+
+      if (emailField && typeof data.email === "string" && data.email.trim()) {
+        emailField.value = data.email.trim();
       }
+
+      if (nameField) {
+        nameField.value = resolvedName;
+      }
+
+      if (phoneField) {
+        phoneField.value = typeof data.phone === "string" ? data.phone : "";
+      }
+
+      const majorValue = typeof data.major === "string" ? data.major : "";
+      if (majorSelect) {
+        const options = Array.from(majorSelect.options || []);
+        const hasOption = options.some((option) => option.value === majorValue);
+        if (majorValue && hasOption) {
+          majorSelect.value = majorValue;
+        } else if (majorValue) {
+          majorSelect.value = "other";
+        } else {
+          majorSelect.value = "";
+        }
+      }
+
+      if (majorOtherInput) {
+        if (majorValue && majorSelect && majorSelect.value === "other") {
+          majorOtherInput.value = majorValue;
+        } else if (typeof data.major_other === "string") {
+          majorOtherInput.value = data.major_other;
+        } else {
+          majorOtherInput.value = "";
+        }
+      }
+
+      const gradYearValue =
+        typeof data.grad_year === "string"
+          ? data.grad_year
+          : typeof data.gradYear === "string"
+          ? data.gradYear
+          : "";
+      if (gradYearField) {
+        gradYearField.value = gradYearValue || "";
+      }
+
+      if (notesField) {
+        notesField.value = typeof data.notes === "string" ? data.notes : "";
+      }
+
+      if (consentCheckbox) {
+        const consentValue = data.consent ?? data.consent_given ?? data.consentGiven ?? data.opt_in;
+        if (consentValue !== undefined) {
+          const truthy = consentValue === true || consentValue === 1 || consentValue === "1" || consentValue === "true";
+          consentCheckbox.checked = truthy;
+        }
+      }
+
+      if (typeof syncConsentValue === "function") {
+        syncConsentValue();
+      }
+
+      Object.entries(fieldGroups).forEach(([key, group]) => {
+        if (group) {
+          const shouldHide = key !== "email" && key !== "fullName";
+          setGroupHidden(group, shouldHide);
+        }
+      });
+
+      if (majorOtherContainer) {
+        majorOtherContainer.hidden = true;
+      }
+
+      if (majorOtherInput) {
+        majorOtherInput.required = false;
+      }
+
+      setNameFieldLocked(true);
+      setConsentDisabled(true);
+      setSubmitVisibility(false);
+
+      if (submitButton) {
+        submitButton.disabled = true;
+        delete submitButton.dataset.state;
+        submitButton.dataset.mode = "locked";
+      }
+
+      showAlreadyRegisteredBanner(resolvedName);
+
+      toggleMajorOther();
+    };
+
+    const applyLookupState = (normalizedEmail, result) => {
+      if (!result) {
+        resetReturningUserMode({ force: true, resetButtonText: true });
+        return;
+      }
+
+      const data = result.data;
+      const meta = result.meta || {};
+
+      if (
+        result.found &&
+        data &&
+        extractFullName(data) &&
+        meta &&
+        typeof meta.latestEvent === "string" &&
+        typeof meta.currentEvent === "string" &&
+        meta.latestEvent === meta.currentEvent
+      ) {
+        setAlreadyRegisteredMode(data, meta);
+        return;
+      }
+
+      if (result.found && data && extractFullName(data)) {
+        setReturningUserMode(data);
+        return;
+      }
+
+      resetReturningUserMode({ force: true, resetButtonText: true });
     };
 
     const cancelPendingLookup = () => {
-      if (lookupDebounceId !== null) {
-        window.clearTimeout(lookupDebounceId);
-        lookupDebounceId = null;
-      }
-
       if (activeLookupController) {
         activeLookupController.abort();
         activeLookupController = null;
@@ -1145,8 +1476,7 @@
 
         if (!response.ok) {
           lookupCache.delete(normalizedEmail);
-          resetReturningUserMode({ force: true, resetButtonText: true });
-          lastLookupEmailNormalized = "";
+          setLookupErrorState();
           return;
         }
 
@@ -1155,8 +1485,7 @@
           payload = await response.json();
         } catch (error) {
           lookupCache.delete(normalizedEmail);
-          resetReturningUserMode({ force: true, resetButtonText: true });
-          lastLookupEmailNormalized = "";
+          setLookupErrorState();
           return;
         }
 
@@ -1170,8 +1499,7 @@
       } catch (error) {
         if (!controller.signal.aborted) {
           lookupCache.delete(normalizedEmail);
-          resetReturningUserMode({ force: true, resetButtonText: true });
-          lastLookupEmailNormalized = "";
+          setLookupErrorState();
         }
       } finally {
         if (activeLookupController === controller) {
@@ -1181,15 +1509,33 @@
       }
     };
 
-    const scheduleLookup = (emailValue, normalizedEmail) => {
-      if (lookupDebounceId !== null) {
-        window.clearTimeout(lookupDebounceId);
+    const handleEmailInputChange = () => {
+      if (!emailField) {
+        return;
       }
 
-      lookupDebounceId = window.setTimeout(() => {
-        lookupDebounceId = null;
-        performLookup(emailValue, normalizedEmail);
-      }, 320);
+      cancelPendingLookup();
+
+      const hadError = lookupErrorActive;
+      const wasReturning = isReturningUser;
+      const wasAlreadyRegistered = isAlreadyRegistered;
+
+      clearLookupErrorState();
+
+      const rawValue = emailField.value || "";
+      const trimmed = rawValue.trim();
+      const normalized = trimmed.toLowerCase();
+
+      if (!trimmed || !normalized.endsWith("@purdue.edu")) {
+        if (hadError || wasReturning || wasAlreadyRegistered) {
+          resetReturningUserMode({ force: true, resetButtonText: true });
+        }
+        return;
+      }
+
+      if (hadError || wasReturning || wasAlreadyRegistered) {
+        resetReturningUserMode({ force: true, resetButtonText: true });
+      }
     };
 
     const handleEmailLookupTrigger = () => {
@@ -1201,25 +1547,8 @@
       const trimmed = rawValue.trim();
       const normalized = trimmed.toLowerCase();
 
-      if (!trimmed) {
+      if (!trimmed || !normalized.endsWith("@purdue.edu")) {
         cancelPendingLookup();
-        lastLookupEmailNormalized = "";
-        resetReturningUserMode({ force: true, resetButtonText: true });
-        return;
-      }
-
-      const atIndex = normalized.lastIndexOf("@");
-      if (atIndex <= 0) {
-        cancelPendingLookup();
-        lastLookupEmailNormalized = "";
-        resetReturningUserMode({ force: true, resetButtonText: true });
-        return;
-      }
-
-      const domain = normalized.slice(atIndex + 1);
-      if (domain !== "purdue.edu") {
-        cancelPendingLookup();
-        lastLookupEmailNormalized = "";
         resetReturningUserMode({ force: true, resetButtonText: true });
         return;
       }
@@ -1229,20 +1558,19 @@
         return;
       }
 
-      if (pendingLookupEmailNormalized === normalized || lastLookupEmailNormalized === normalized) {
+      if (pendingLookupEmailNormalized === normalized) {
         return;
       }
 
-      scheduleLookup(trimmed, normalized);
+      performLookup(trimmed, normalized);
     };
 
     if (emailField) {
-      emailField.addEventListener("input", handleEmailLookupTrigger);
+      emailField.addEventListener("input", handleEmailInputChange);
       emailField.addEventListener("blur", handleEmailLookupTrigger);
     }
 
     resetReturningUserMode({ force: true, resetButtonText: true });
-    handleEmailLookupTrigger();
 
     form.addEventListener("submit", async (event) => {
       event.preventDefault();

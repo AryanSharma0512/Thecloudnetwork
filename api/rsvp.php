@@ -3,12 +3,6 @@ declare(strict_types=1);
 
 header('Content-Type: application/json; charset=utf-8');
 
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
-    echo json_encode(['ok' => false, 'error' => 'Method not allowed']);
-    exit;
-}
-
 function respond(int $statusCode, array $payload): void
 {
     http_response_code($statusCode);
@@ -41,6 +35,97 @@ function get_env(string $key, ?string $default = null): ?string
     }
     $value = trim((string) $value);
     return $value !== '' ? $value : $default;
+}
+
+function create_pdo(): PDO
+{
+    $dbHost = get_env('APP_DB_HOST');
+    $dbName = get_env('APP_DB_NAME');
+    $dbUser = get_env('APP_DB_USER');
+    $dbPass = get_env('APP_DB_PASS');
+
+    if (!$dbHost || !$dbName || !$dbUser) {
+        throw new RuntimeException('Database configuration missing');
+    }
+
+    $dsn = sprintf('mysql:host=%s;dbname=%s;charset=utf8mb4', $dbHost, $dbName);
+
+    return new PDO($dsn, $dbUser, $dbPass ?? '', [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES => false,
+    ]);
+}
+
+function handle_lookup(): void
+{
+    $emailRaw = filter_input(INPUT_GET, 'email', FILTER_UNSAFE_RAW);
+    $email = is_string($emailRaw) ? trim($emailRaw) : '';
+
+    if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        respond(400, [
+            'status' => 'error',
+            'error' => 'Invalid email supplied',
+            'existingUser' => false,
+        ]);
+    }
+
+    $eventSlug = get_env('APP_EVENT_SLUG', 'apply-event');
+
+    try {
+        $pdo = create_pdo();
+        $stmt = $pdo->prepare('SELECT event_slug, full_name, email, phone, major, grad_year, notes, consent FROM rsvps WHERE email = :email LIMIT 1');
+        $stmt->bindValue(':email', $email);
+        $stmt->execute();
+
+        $record = $stmt->fetch();
+
+        if (!$record) {
+            respond(404, [
+                'status' => 'not_found',
+                'existingUser' => false,
+            ]);
+        }
+
+        $fullName = isset($record['full_name']) ? trim((string) $record['full_name']) : '';
+        $latestEvent = isset($record['event_slug']) ? (string) $record['event_slug'] : null;
+
+        $payload = [
+            'status' => 'ok',
+            'existingUser' => true,
+            'name' => $fullName,
+            'latest_event' => $latestEvent,
+            'current_event' => $eventSlug,
+            'data' => [
+                'full_name' => $fullName,
+                'email' => $record['email'] ?? $email,
+                'phone' => $record['phone'] ?? null,
+                'major' => $record['major'] ?? null,
+                'grad_year' => $record['grad_year'] ?? null,
+                'notes' => $record['notes'] ?? null,
+                'consent' => isset($record['consent']) ? (int) $record['consent'] : null,
+                'latest_event' => $latestEvent,
+            ],
+        ];
+
+        respond(200, $payload);
+    } catch (Throwable $e) {
+        error_log('RSVP lookup failure: ' . $e->getMessage());
+        respond(500, [
+            'status' => 'error',
+            'error' => 'Lookup failed',
+        ]);
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['lookup'])) {
+    handle_lookup();
+}
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
+    echo json_encode(['ok' => false, 'error' => 'Method not allowed']);
+    exit;
 }
 
 $input = filter_input_array(INPUT_POST, [
@@ -143,21 +228,7 @@ if (is_array($consentRaw)) {
 
 $pdo = null;
 try {
-    $dbHost = get_env('APP_DB_HOST');
-    $dbName = get_env('APP_DB_NAME');
-    $dbUser = get_env('APP_DB_USER');
-    $dbPass = get_env('APP_DB_PASS');
-
-    if (!$dbHost || !$dbName || !$dbUser) {
-        throw new RuntimeException('Database configuration missing');
-    }
-
-    $dsn = sprintf('mysql:host=%s;dbname=%s;charset=utf8mb4', $dbHost, $dbName);
-    $pdo = new PDO($dsn, $dbUser, $dbPass ?? '', [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        PDO::ATTR_EMULATE_PREPARES => false,
-    ]);
+    $pdo = create_pdo();
 
     $sql = 'INSERT INTO rsvps (event_slug, full_name, email, phone, major, grad_year, notes, consent, ip, user_agent)
             VALUES (:event_slug, :full_name, :email, :phone, :major, :grad_year, :notes, :consent, :ip, :user_agent)
